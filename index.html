@@ -33,13 +33,13 @@
   .searchbox { position:relative; flex:1; min-width:220px; }
   .searchbox input { width:100%; padding:10px 12px 10px 34px; border:1px solid var(--ink); border-radius:3px; font-size:14px; background:var(--card); }
   .searchbox svg { position:absolute; left:10px; top:11px; }
-  .cclabel { display:flex; align-items:center; gap:6px; font-size:13px; font-family:'IBM Plex Mono', monospace; color:var(--sage); cursor:pointer; user-select:none; }
 
   .chips { display:flex; gap:8px; overflow-x:auto; padding:12px 2px 4px; margin-bottom:4px; }
   .chip { flex-shrink:0; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:16px; padding:6px 14px; font-size:12.5px; font-weight:500; cursor:pointer; white-space:nowrap; }
   .chip.active { background:var(--ink); color:var(--paper); border-color:var(--ink); }
 
   .errbox { margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:#F5E6E1; border:1px solid var(--oxblood); border-radius:3px; padding:10px 12px; font-size:13px; color:var(--oxblood); }
+  .errbox.info { background:#F3F0E4; border-color:var(--brass); color:#5b4b1a; }
 
   .sprocket { height:14px; background-color:var(--ink); background-image:repeating-radial-gradient(circle at 16px 7px, var(--paper) 0 3.5px, transparent 4px 100%); background-size:32px 14px; }
   .nowplaying { margin-top:28px; }
@@ -74,7 +74,6 @@
   .duration { position:absolute; bottom:6px; right:6px; background:rgba(35,40,43,0.85); color:var(--paper); font-family:'IBM Plex Mono', monospace; font-size:11px; padding:1px 5px; border-radius:2px; }
   .cardbody { padding:10px 12px 12px; flex:1; display:flex; flex-direction:column; }
   .callno { font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--brass); display:flex; justify-content:space-between; margin-bottom:4px; }
-  .callno .cc { color:var(--sage); }
   .cardtitle { font-family:'Fraunces', serif; font-weight:600; font-size:14.5px; line-height:1.3; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .cardchannel { font-size:12px; color:var(--muted); margin-bottom:10px; }
   .cardactions { margin-top:auto; display:flex; gap:6px; }
@@ -93,9 +92,9 @@
     <div class="titlebar">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7A2E2E" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
       <h1>パブリック・アーカイブ</h1>
-      <span class="badge">CC / 著作権フリー閲覧室</span>
+      <span class="badge">YouTube 検索 &amp; プレイヤー</span>
     </div>
-    <p>YouTube上のクリエイティブ・コモンズ動画を検索し、その場で再生します(ダウンロードは行いません)。</p>
+    <p>YouTube動画を検索し、その場で再生します(ダウンロードは行わず、YouTube公式プレイヤーで再生します)。</p>
   </div>
 </header>
 
@@ -114,10 +113,10 @@
 const state = {
   apiKey: "",
   query: "",
-  ccOnly: true,
   results: [],
   loading: false,
   error: "",
+  errorType: "",
   nowPlaying: null,
   collection: [],
   tab: "search",
@@ -145,7 +144,7 @@ function formatDuration(iso) {
 function callNumber(id) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return `CC-${String((hash % 900000) + 100000)}`;
+  return `ARC-${String((hash % 900000) + 100000)}`;
 }
 function icon(name, size = 14, extra = "") {
   const paths = {
@@ -198,7 +197,6 @@ function renderSearch() {
       <div class="searchbox">${icon("search",16,"color:#5b5648")}
         <input type="text" id="queryinput" placeholder="キーワードで検索(例: 自然, ジャズ, ドローン映像)" value="${state.query.replace(/"/g,'&quot;')}" />
       </div>
-      <label class="cclabel"><input type="checkbox" id="cconly" ${state.ccOnly ? "checked" : ""} /> CCライセンスのみ</label>
       <button type="submit" class="btn btn-ox">${state.loading ? icon("search",15) : icon("search",15)} 検索</button>
     </form>
     <div class="chips" id="chips"></div>
@@ -209,7 +207,6 @@ function renderSearch() {
     e.preventDefault();
     runSearch(document.getElementById("queryinput").value);
   });
-  document.getElementById("cconly").addEventListener("change", (e) => { state.ccOnly = e.target.checked; });
 
   const chips = document.getElementById("chips");
   CATEGORIES.forEach((cat) => {
@@ -224,7 +221,8 @@ function renderError() {
   const slot = document.getElementById("error-slot");
   slot.innerHTML = "";
   if (!state.error) return;
-  slot.appendChild(el(`<div class="errbox">${icon("alert",16)}<span>${state.error}</span></div>`));
+  const cls = state.errorType === "info" ? "errbox info" : "errbox";
+  slot.appendChild(el(`<div class="${cls}">${icon("alert",16)}<span>${state.error}</span></div>`));
 }
 
 /* ---------- search logic ---------- */
@@ -235,31 +233,42 @@ async function runSearch(term) {
   state.query = term;
   state.loading = true;
   state.error = "";
+  state.errorType = "";
   renderSearch(); renderError();
   try {
     const params = new URLSearchParams({
       part: "snippet", q: term, type: "video", maxResults: "12",
       videoEmbeddable: "true", safeSearch: "strict", key: state.apiKey,
     });
-    if (state.ccOnly) params.set("videoLicense", "creativeCommon");
     const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+    if (!searchRes.ok) {
+      const errBody = await searchRes.json().catch(() => ({}));
+      throw new Error(
+        errBody?.error?.message
+          ? `${errBody.error.message} (HTTP ${searchRes.status})`
+          : `検索リクエストが失敗しました (HTTP ${searchRes.status})。APIキーが正しいか、YouTube Data API v3が有効化されているか確認してください。`
+      );
+    }
     const searchData = await searchRes.json();
     if (searchData.error) throw new Error(searchData.error.message || "検索に失敗しました");
     const items = searchData.items || [];
+
     if (items.length === 0) { state.results = []; }
     else {
       const ids = items.map((it) => it.id.videoId).join(",");
       const detailRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,status&id=${ids}&key=${state.apiKey}`);
       const detailData = await detailRes.json();
-      const durationMap = {}, licenseMap = {};
-      (detailData.items || []).forEach((d) => { durationMap[d.id] = d.contentDetails?.duration; licenseMap[d.id] = d.status?.license; });
+      const durationMap = {};
+      (detailData.items || []).forEach((d) => { durationMap[d.id] = d.contentDetails?.duration; });
       state.results = items.map((it) => ({
         id: it.id.videoId, title: it.snippet.title, channel: it.snippet.channelTitle,
-        thumb: it.snippet.thumbnails?.medium?.url, duration: formatDuration(durationMap[it.id.videoId]), license: licenseMap[it.id.videoId],
+        thumb: it.snippet.thumbnails?.medium?.url, duration: formatDuration(durationMap[it.id.videoId]),
       }));
     }
   } catch (err) {
+    console.error("YouTube検索エラー:", err);
     state.error = err.message || "検索中にエラーが発生しました。APIキーを確認してください。";
+    state.errorType = "error";
     state.results = [];
   } finally {
     state.loading = false;
@@ -404,7 +413,7 @@ function renderCard(v) {
         <span class="duration">${v.duration}</span>
       </div>
       <div class="cardbody">
-        <div class="callno"><span>${callNumber(v.id)}</span>${v.license === "creativeCommon" ? '<span class="cc">CC BY</span>' : ""}</div>
+        <div class="callno"><span>${callNumber(v.id)}</span></div>
         <div class="cardtitle">${v.title}</div>
         <div class="cardchannel">${v.channel}</div>
         <div class="cardactions">
