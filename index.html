@@ -21,6 +21,11 @@
   header p { margin:6px 0 0; color:var(--muted); font-size:14.5px; }
 
   .keybox { margin-top:24px; background:var(--card); border:1px solid var(--line); border-radius:4px; padding:18px 20px; }
+  .urlbox { margin-top:24px; background:#EFEADA; border:1px solid var(--brass); border-radius:4px; padding:16px 20px; }
+  .urlbox strong { font-family:'Fraunces', serif; font-size:16px; }
+  .urlbox p { font-size:13px; color:var(--muted); margin:6px 0 12px; line-height:1.5; }
+  .urlform { display:flex; gap:8px; flex-wrap:wrap; }
+  .urlform input { flex:1; min-width:180px; padding:9px 12px; border:1px solid var(--ink); border-radius:3px; font-size:13px; background:#fff; }
   .keybox strong { font-family:'Fraunces', serif; font-size:17px; }
   .keybox p { font-size:13.5px; color:var(--muted); line-height:1.6; margin:8px 0 12px; }
   .keyform { display:flex; gap:8px; }
@@ -99,6 +104,7 @@
 </header>
 
 <div class="wrap">
+  <div id="directurl-slot"></div>
   <div id="keybox-slot"></div>
   <div id="search-slot"></div>
   <div id="error-slot"></div>
@@ -160,6 +166,67 @@ function icon(name, size = 14, extra = "") {
 }
 function el(html) { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
 
+/* ---------- direct URL / video ID playback (no API key needed) ---------- */
+function extractVideoId(input) {
+  input = input.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input; // bare video ID
+  const patterns = [
+    /(?:youtube\.com\/watch\?.*v=|youtube\.com\/shorts\/|youtube\.com\/embed\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const re of patterns) {
+    const m = input.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function renderDirectUrlBox() {
+  const slot = document.getElementById("directurl-slot");
+  slot.innerHTML = "";
+  const box = el(`
+    <div class="urlbox">
+      <strong>URLを直接指定して再生</strong>
+      <p>検索を使わず、YouTubeの動画URL(または動画ID)を直接貼り付けて再生できます。この機能はAPIキーが無くても使えます。</p>
+      <form class="urlform" id="urlform">
+        <input type="text" id="urlinput" placeholder="https://www.youtube.com/watch?v=... または動画ID" />
+        <button type="submit" class="btn btn-ox">再生</button>
+      </form>
+    </div>
+  `);
+  slot.appendChild(box);
+  document.getElementById("urlform").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const raw = document.getElementById("urlinput").value;
+    const id = extractVideoId(raw);
+    if (!id) {
+      state.error = "有効なYouTubeのURLまたは動画IDを入力してください。";
+      state.errorType = "error";
+      renderError();
+      return;
+    }
+    document.getElementById("urlinput").value = "";
+    state.error = "";
+    renderError();
+    let title = "直接指定した動画";
+    let channel = "";
+    let thumb = `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+    try {
+      // oEmbed doesn't require an API key and works even if the Data API key
+      // is missing/misconfigured — good fallback source for the title/author.
+      const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent("https://www.youtube.com/watch?v=" + id)}&format=json`);
+      if (res.ok) {
+        const data = await res.json();
+        title = data.title || title;
+        channel = data.author_name || "";
+        thumb = data.thumbnail_url || thumb;
+      }
+    } catch (err) {
+      console.warn("oEmbed取得に失敗(再生自体は続行します):", err);
+    }
+    playVideo({ id, title, channel, thumb, duration: "--:--" });
+  });
+}
+
 /* ---------- API key box ---------- */
 function renderKeyBox() {
   const slot = document.getElementById("keybox-slot");
@@ -172,6 +239,7 @@ function renderKeyBox() {
         <strong>入館証(APIキー)の登録</strong>
       </div>
       <p>検索にはYouTube Data API v3のキーが必要です。Google Cloud ConsoleでYouTube Data API v3を有効化し、APIキーを発行してください。キーはこの画面内のメモリにのみ保持され、保存・送信先はGoogle APIのみです。</p>
+      <p style="color:#7A2E2E;">GitHub Pagesなどで検索が0件になる場合、Google Cloud ConsoleのAPIキー設定で「アプリケーションの制限」が「iOSアプリ」や未設定の「HTTPリファラー」になっていないか確認してください。「ウェブサイト」制限にして、公開先のドメイン(例: <code>あなたのユーザー名.github.io/*</code>)を許可リストに追加する必要があります。</p>
       <form class="keyform" id="keyform">
         <input type="text" id="keyinput" placeholder="YouTube Data API キーを入力" style="flex:1;" />
         <button type="submit" class="btn btn-ink">登録する</button>
@@ -438,6 +506,7 @@ function renderCard(v) {
 
 /* ---------- root render ---------- */
 function renderAll() {
+  renderDirectUrlBox();
   renderKeyBox();
   renderSearch();
   renderError();
