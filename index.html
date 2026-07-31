@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>パブリック・アーカイブ | CC動画閲覧室</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+<style>
+  :root {
+    --paper:#EAE6D9; --ink:#23282B; --card:#F5F1E6;
+    --oxblood:#7A2E2E; --brass:#A6862C; --sage:#566246; --muted:#5b5648; --line:#C9C2AC;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'IBM Plex Sans', sans-serif; background:var(--paper); color:var(--ink); }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px 48px; }
+  header { border-bottom: 3px solid var(--ink); padding: 28px 24px 20px; }
+  header .inner { max-width: 920px; margin: 0 auto; }
+  h1 { font-family:'Fraunces', serif; font-weight:700; font-size:30px; margin:0; letter-spacing:-0.01em; display:inline; }
+  .titlebar { display:flex; align-items:baseline; gap:10px; }
+  .badge { font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--sage); border:1px solid var(--sage); border-radius:3px; padding:2px 6px; }
+  header p { margin:6px 0 0; color:var(--muted); font-size:14.5px; }
+
+  .keybox { margin-top:24px; background:var(--card); border:1px solid var(--line); border-radius:4px; padding:18px 20px; }
+  .keybox strong { font-family:'Fraunces', serif; font-size:17px; }
+  .keybox p { font-size:13.5px; color:var(--muted); line-height:1.6; margin:8px 0 12px; }
+  .keyform { display:flex; gap:8px; }
+  input[type=text], input[type=password] { padding:9px 12px; border:1px solid var(--ink); border-radius:3px; font-size:13px; background:#fff; font-family:'IBM Plex Mono', monospace; }
+  .btn { border:none; border-radius:3px; font-weight:600; cursor:pointer; font-family:'IBM Plex Sans', sans-serif; }
+  .btn-ink { background:var(--ink); color:var(--paper); padding:9px 18px; font-size:13.5px; }
+  .btn-ox { background:var(--oxblood); color:var(--card); padding:10px 20px; font-size:13.5px; display:flex; align-items:center; gap:6px; }
+
+  .searchrow { margin-top:24px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .searchbox { position:relative; flex:1; min-width:220px; }
+  .searchbox input { width:100%; padding:10px 12px 10px 34px; border:1px solid var(--ink); border-radius:3px; font-size:14px; background:var(--card); }
+  .searchbox svg { position:absolute; left:10px; top:11px; }
+  .cclabel { display:flex; align-items:center; gap:6px; font-size:13px; font-family:'IBM Plex Mono', monospace; color:var(--sage); cursor:pointer; user-select:none; }
+
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:12px 2px 4px; margin-bottom:4px; }
+  .chip { flex-shrink:0; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:16px; padding:6px 14px; font-size:12.5px; font-weight:500; cursor:pointer; white-space:nowrap; }
+  .chip.active { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+
+  .errbox { margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:#F5E6E1; border:1px solid var(--oxblood); border-radius:3px; padding:10px 12px; font-size:13px; color:var(--oxblood); }
+
+  .sprocket { height:14px; background-color:var(--ink); background-image:repeating-radial-gradient(circle at 16px 7px, var(--paper) 0 3.5px, transparent 4px 100%); background-size:32px 14px; }
+  .nowplaying { margin-top:28px; }
+  .np-inner { background:var(--ink); padding:18px 18px 0; }
+  .np-audio { display:flex; gap:16px; align-items:center; padding:18px 4px 22px; color:var(--paper); }
+  .np-audio img { width:96px; height:96px; object-fit:cover; border-radius:4px; flex-shrink:0; }
+  .eq { display:flex; gap:3px; align-items:flex-end; height:18px; margin-top:6px; }
+  .eq span { width:3px; background:var(--brass); animation:eqbar 1s ease-in-out infinite; }
+  .eq span:nth-child(2){ animation-delay:0.15s; } .eq span:nth-child(3){ animation-delay:0.3s; } .eq span:nth-child(4){ animation-delay:0.45s; }
+  @keyframes eqbar { 0%,100%{height:4px;} 50%{height:16px;} }
+  .np-meta-label { font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); margin-bottom:4px; }
+  .np-title { font-family:'Fraunces', serif; font-size:18px; font-weight:600; }
+  .np-channel { font-size:13px; color:#c9c2ac; margin-top:2px; }
+  .np-controls { display:flex; gap:10px; margin-top:10px; }
+  .np-controls button { background:transparent; border:1px solid var(--paper); color:var(--paper); border-radius:3px; padding:6px 10px; cursor:pointer; display:flex; align-items:center; gap:4px; font-size:12.5px; }
+  .videoframe-wrap { position:relative; padding-bottom:56.25%; height:0; }
+  .videoframe-wrap iframe { position:absolute; inset:0; width:100%; height:100%; border:none; }
+
+  .tabs { display:flex; gap:4px; margin-top:30px; border-bottom:2px solid var(--ink); }
+  .tab { display:flex; align-items:center; gap:6px; background:transparent; color:var(--ink); border:none; border-radius:3px 3px 0 0; padding:8px 16px; font-size:13.5px; font-weight:600; cursor:pointer; }
+  .tab.active { background:var(--ink); color:var(--paper); }
+
+  .empty { border:1px dashed var(--brass); border-radius:4px; padding:28px 20px; text-align:center; color:var(--muted); font-size:13.5px; margin:16px 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; margin-top:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:4px; overflow:hidden; display:flex; flex-direction:column; }
+  .card.playing { border:2px solid var(--oxblood); }
+  .thumbwrap { position:relative; }
+  .thumbwrap img { width:100%; display:block; aspect-ratio:16/9; object-fit:cover; }
+  .playoverlay { position:absolute; inset:0; width:100%; height:100%; background:rgba(35,40,43,0.15); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s; }
+  .thumbwrap:hover .playoverlay { opacity:1; }
+  .playoverlay .circle { background:var(--oxblood); border-radius:50%; width:42px; height:42px; display:flex; align-items:center; justify-content:center; }
+  .duration { position:absolute; bottom:6px; right:6px; background:rgba(35,40,43,0.85); color:var(--paper); font-family:'IBM Plex Mono', monospace; font-size:11px; padding:1px 5px; border-radius:2px; }
+  .cardbody { padding:10px 12px 12px; flex:1; display:flex; flex-direction:column; }
+  .callno { font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--brass); display:flex; justify-content:space-between; margin-bottom:4px; }
+  .callno .cc { color:var(--sage); }
+  .cardtitle { font-family:'Fraunces', serif; font-weight:600; font-size:14.5px; line-height:1.3; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .cardchannel { font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .cardactions { margin-top:auto; display:flex; gap:6px; }
+  .cardactions .play-btn { flex:1; background:var(--ink); color:var(--paper); border:none; border-radius:3px; padding:7px 0; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .cardactions .icon-btn { background:transparent; border:1px solid var(--sage); color:var(--sage); border-radius:3px; padding:7px 9px; cursor:pointer; display:flex; align-items:center; }
+  .cardactions .icon-btn.remove { border-color:var(--oxblood); color:var(--oxblood); }
+  .cardactions .icon-btn.added { background:var(--paper); cursor:default; }
+  .spin { animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .yt-hidden-host { width:2px; height:2px; overflow:hidden; position:absolute; opacity:0.01; pointer-events:none; }
+</style>
+</head>
+<body>
+<header>
+  <div class="inner">
+    <div class="titlebar">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7A2E2E" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      <h1>パブリック・アーカイブ</h1>
+      <span class="badge">CC / 著作権フリー閲覧室</span>
+    </div>
+    <p>YouTube上のクリエイティブ・コモンズ動画を検索し、その場で再生します(ダウンロードは行いません)。</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="keybox-slot"></div>
+  <div id="search-slot"></div>
+  <div id="error-slot"></div>
+  <div id="nowplaying-slot"></div>
+  <div id="tabs-slot"></div>
+  <div id="list-slot"></div>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+/* ---------- state ---------- */
+const state = {
+  apiKey: "",
+  query: "",
+  ccOnly: true,
+  results: [],
+  loading: false,
+  error: "",
+  nowPlaying: null,
+  collection: [],
+  tab: "search",
+};
+
+const CATEGORIES = ["自然","リラックスBGM","ジャズ","ドローン映像","都市の風景","料理","ダンス","アニメーション","サイエンス","宇宙"];
+
+let ytApiReady = false;
+let ytPlayer = null;
+window.onYouTubeIframeAPIReady = function () {
+  ytApiReady = true;
+  if (state.nowPlaying) mountPlayer(state.nowPlaying);
+};
+
+/* ---------- helpers ---------- */
+function formatDuration(iso) {
+  if (!iso) return "--:--";
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return "--:--";
+  const h = parseInt(m[1] || 0, 10), min = parseInt(m[2] || 0, 10), s = parseInt(m[3] || 0, 10);
+  const mm = h ? String(min).padStart(2, "0") : String(min);
+  const ss = String(s).padStart(2, "0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+function callNumber(id) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return `CC-${String((hash % 900000) + 100000)}`;
+}
+function icon(name, size = 14, extra = "") {
+  const paths = {
+    search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+    play: '<polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>',
+    pause: '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+    alert: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    library: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  };
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${extra}">${paths[name] || ""}</svg>`;
+}
+function el(html) { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
+
+/* ---------- API key box ---------- */
+function renderKeyBox() {
+  const slot = document.getElementById("keybox-slot");
+  slot.innerHTML = "";
+  if (state.apiKey) return;
+  const box = el(`
+    <div class="keybox">
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${icon("library", 18, "color:#A6862C")}
+        <strong>入館証(APIキー)の登録</strong>
+      </div>
+      <p>検索にはYouTube Data API v3のキーが必要です。Google Cloud ConsoleでYouTube Data API v3を有効化し、APIキーを発行してください。キーはこの画面内のメモリにのみ保持され、保存・送信先はGoogle APIのみです。</p>
+      <form class="keyform" id="keyform">
+        <input type="text" id="keyinput" placeholder="YouTube Data API キーを入力" style="flex:1;" />
+        <button type="submit" class="btn btn-ink">登録する</button>
+      </form>
+    </div>
+  `);
+  slot.appendChild(box);
+  document.getElementById("keyform").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = document.getElementById("keyinput").value.trim();
+    if (v) { state.apiKey = v; renderAll(); runSearch(CATEGORIES[0]); }
+  });
+}
+
+/* ---------- search row + chips ---------- */
+function renderSearch() {
+  const slot = document.getElementById("search-slot");
+  slot.innerHTML = "";
+  if (!state.apiKey) return;
+
+  const row = el(`
+    <form class="searchrow" id="searchform">
+      <div class="searchbox">${icon("search",16,"color:#5b5648")}
+        <input type="text" id="queryinput" placeholder="キーワードで検索(例: 自然, ジャズ, ドローン映像)" value="${state.query.replace(/"/g,'&quot;')}" />
+      </div>
+      <label class="cclabel"><input type="checkbox" id="cconly" ${state.ccOnly ? "checked" : ""} /> CCライセンスのみ</label>
+      <button type="submit" class="btn btn-ox">${state.loading ? icon("search",15) : icon("search",15)} 検索</button>
+    </form>
+    <div class="chips" id="chips"></div>
+  `);
+  slot.appendChild(row);
+
+  document.getElementById("searchform").addEventListener("submit", (e) => {
+    e.preventDefault();
+    runSearch(document.getElementById("queryinput").value);
+  });
+  document.getElementById("cconly").addEventListener("change", (e) => { state.ccOnly = e.target.checked; });
+
+  const chips = document.getElementById("chips");
+  CATEGORIES.forEach((cat) => {
+    const b = el(`<button type="button" class="chip ${state.query === cat ? "active" : ""}">${cat}</button>`);
+    b.addEventListener("click", () => runSearch(cat));
+    chips.appendChild(b);
+  });
+}
+
+/* ---------- error ---------- */
+function renderError() {
+  const slot = document.getElementById("error-slot");
+  slot.innerHTML = "";
+  if (!state.error) return;
+  slot.appendChild(el(`<div class="errbox">${icon("alert",16)}<span>${state.error}</span></div>`));
+}
+
+/* ---------- search logic ---------- */
+async function runSearch(term) {
+  term = (term ?? state.query).trim();
+  if (!state.apiKey) { state.error = "先にYouTube Data APIキーを設定してください。"; renderError(); return; }
+  if (!term) return;
+  state.query = term;
+  state.loading = true;
+  state.error = "";
+  renderSearch(); renderError();
+  try {
+    const params = new URLSearchParams({
+      part: "snippet", q: term, type: "video", maxResults: "12",
+      videoEmbeddable: "true", safeSearch: "strict", key: state.apiKey,
+    });
+    if (state.ccOnly) params.set("videoLicense", "creativeCommon");
+    const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+    const searchData = await searchRes.json();
+    if (searchData.error) throw new Error(searchData.error.message || "検索に失敗しました");
+    const items = searchData.items || [];
+    if (items.length === 0) { state.results = []; }
+    else {
+      const ids = items.map((it) => it.id.videoId).join(",");
+      const detailRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,status&id=${ids}&key=${state.apiKey}`);
+      const detailData = await detailRes.json();
+      const durationMap = {}, licenseMap = {};
+      (detailData.items || []).forEach((d) => { durationMap[d.id] = d.contentDetails?.duration; licenseMap[d.id] = d.status?.license; });
+      state.results = items.map((it) => ({
+        id: it.id.videoId, title: it.snippet.title, channel: it.snippet.channelTitle,
+        thumb: it.snippet.thumbnails?.medium?.url, duration: formatDuration(durationMap[it.id.videoId]), license: licenseMap[it.id.videoId],
+      }));
+    }
+  } catch (err) {
+    state.error = err.message || "検索中にエラーが発生しました。APIキーを確認してください。";
+    state.results = [];
+  } finally {
+    state.loading = false;
+    renderAll();
+  }
+}
+
+/* ---------- now playing / audio-only player ---------- */
+function addToCollection(v) { if (!state.collection.some((c) => c.id === v.id)) { state.collection.push(v); renderAll(); } }
+function removeFromCollection(id) {
+  state.collection = state.collection.filter((c) => c.id !== id);
+  if (state.nowPlaying?.id === id) { state.nowPlaying = null; destroyPlayer(); }
+  renderAll();
+}
+function playVideo(v) { state.nowPlaying = v; syncNowPlaying(); renderAll(); }
+
+function destroyPlayer() { if (ytPlayer) { try { ytPlayer.destroy(); } catch (e) {} ytPlayer = null; } }
+
+function mountPlayer(video) {
+  if (!ytApiReady) return;
+  destroyPlayer();
+  const host = document.getElementById("yt-host");
+  if (!host) return;
+  ytPlayer = new YT.Player(host, {
+    videoId: video.id,
+    width: "2", height: "2",
+    playerVars: { autoplay: 1, playsinline: 1, controls: 0, vq: "tiny" },
+    events: {
+      onReady: (e) => { e.target.setPlaybackQuality("tiny"); e.target.playVideo(); },
+      onStateChange: (e) => {
+        const S = YT.PlayerState;
+        if (e.data === S.PLAYING) e.target.setPlaybackQuality("tiny");
+        if ("mediaSession" in navigator) {
+          navigator.mediaSession.playbackState = e.data === S.PLAYING ? "playing" : e.data === S.PAUSED ? "paused" : "none";
+        }
+        updatePlayPauseIcon(e.data === S.PLAYING);
+      },
+      onPlaybackQualityChange: (e) => { if (e.data !== "tiny" && e.data !== "small") e.target.setPlaybackQuality("tiny"); },
+    },
+  });
+  setupMediaSession(video);
+}
+
+function setupMediaSession(video) {
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: video.title, artist: video.channel, album: "パブリック・アーカイブ",
+    artwork: video.thumb ? [{ src: video.thumb, sizes: "320x180", type: "image/jpeg" }] : [],
+  });
+  navigator.mediaSession.setActionHandler("play", () => ytPlayer?.playVideo?.());
+  navigator.mediaSession.setActionHandler("pause", () => ytPlayer?.pauseVideo?.());
+}
+
+function updatePlayPauseIcon(isPlaying) {
+  const btn = document.getElementById("np-playpause");
+  if (btn) btn.innerHTML = (isPlaying ? icon("pause", 14) : icon("play", 14)) + (isPlaying ? " 一時停止" : " 再生");
+}
+
+let renderedNowPlayingId = null;
+
+function syncNowPlaying() {
+  const slot = document.getElementById("nowplaying-slot");
+  if (!state.nowPlaying) {
+    if (renderedNowPlayingId !== null) { slot.innerHTML = ""; renderedNowPlayingId = null; }
+    return;
+  }
+  if (state.nowPlaying.id === renderedNowPlayingId) return; // already mounted & playing — leave it alone
+  renderedNowPlayingId = state.nowPlaying.id;
+  const v = state.nowPlaying;
+  slot.innerHTML = "";
+  const panel = el(`
+    <div class="nowplaying">
+      <div class="sprocket"></div>
+      <div class="np-inner">
+        <div class="np-audio">
+          <img src="${v.thumb || ""}" alt="" />
+          <div style="flex:1;">
+            <div class="np-meta-label">NOW PLAYING (AUDIO ONLY) · ${callNumber(v.id)}</div>
+            <div class="np-title">${v.title}</div>
+            <div class="np-channel">${v.channel}</div>
+            <div class="eq"><span></span><span></span><span></span><span></span></div>
+            <div class="np-controls">
+              <button id="np-playpause">${icon("pause",14)} 一時停止</button>
+            </div>
+          </div>
+          <div class="yt-hidden-host" id="yt-host"></div>
+        </div>
+      </div>
+      <div class="sprocket"></div>
+    </div>
+  `);
+  slot.appendChild(panel);
+  document.getElementById("np-playpause").addEventListener("click", () => {
+    if (!ytPlayer) return;
+    const s = ytPlayer.getPlayerState();
+    if (s === YT.PlayerState.PLAYING) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
+  });
+  mountPlayer(v);
+}
+
+/* ---------- tabs ---------- */
+function renderTabs() {
+  const slot = document.getElementById("tabs-slot");
+  slot.innerHTML = "";
+  const wrap = el(`
+    <div class="tabs">
+      <button class="tab ${state.tab === "search" ? "active" : ""}" id="tab-search">${icon("search",14)} 検索結果</button>
+      <button class="tab ${state.tab === "collection" ? "active" : ""}" id="tab-collection">${icon("library",14)} コレクション (${state.collection.length})</button>
+    </div>
+  `);
+  slot.appendChild(wrap);
+  document.getElementById("tab-search").addEventListener("click", () => { state.tab = "search"; renderAll(); });
+  document.getElementById("tab-collection").addEventListener("click", () => { state.tab = "collection"; renderAll(); });
+}
+
+/* ---------- list / grid ---------- */
+function renderList() {
+  const slot = document.getElementById("list-slot");
+  slot.innerHTML = "";
+  const listShown = state.tab === "search" ? state.results : state.collection;
+
+  if (state.tab === "search" && listShown.length === 0 && !state.loading) {
+    slot.appendChild(el(`<div class="empty">${state.apiKey ? "上のチップから気分のカテゴリを選ぶか、キーワードを入力してください。" : "入館証(APIキー)を登録すると検索できます。"}</div>`));
+  }
+  if (state.tab === "collection" && listShown.length === 0) {
+    slot.appendChild(el(`<div class="empty">まだコレクションに追加された作品がありません。検索結果の「＋」から追加できます。</div>`));
+  }
+
+  const grid = el(`<div class="grid"></div>`);
+  listShown.forEach((v) => grid.appendChild(renderCard(v)));
+  slot.appendChild(grid);
+}
+
+function renderCard(v) {
+  const playing = state.nowPlaying?.id === v.id;
+  const inCollection = state.collection.some((c) => c.id === v.id);
+  const card = el(`
+    <div class="card ${playing ? "playing" : ""}">
+      <div class="thumbwrap">
+        <img src="${v.thumb || ""}" alt="" />
+        <button class="playoverlay"><span class="circle">${icon("play",18,"color:#F5F1E6")}</span></button>
+        <span class="duration">${v.duration}</span>
+      </div>
+      <div class="cardbody">
+        <div class="callno"><span>${callNumber(v.id)}</span>${v.license === "creativeCommon" ? '<span class="cc">CC BY</span>' : ""}</div>
+        <div class="cardtitle">${v.title}</div>
+        <div class="cardchannel">${v.channel}</div>
+        <div class="cardactions">
+          <button class="play-btn">再生</button>
+          ${state.tab === "collection"
+            ? `<button class="icon-btn remove" aria-label="コレクションから削除">${icon("x",14)}</button>`
+            : `<button class="icon-btn ${inCollection ? "added" : ""}" aria-label="コレクションに追加">${icon("plus",14)}</button>`}
+        </div>
+      </div>
+    </div>
+  `);
+  card.querySelector(".playoverlay").addEventListener("click", () => playVideo(v));
+  card.querySelector(".play-btn").addEventListener("click", () => playVideo(v));
+  if (state.tab === "collection") {
+    card.querySelector(".icon-btn.remove").addEventListener("click", () => removeFromCollection(v.id));
+  } else {
+    const addBtn = card.querySelector(".icon-btn");
+    addBtn.addEventListener("click", () => { if (!inCollection) addToCollection(v); });
+  }
+  return card;
+}
+
+/* ---------- root render ---------- */
+function renderAll() {
+  renderKeyBox();
+  renderSearch();
+  renderError();
+  syncNowPlaying();
+  renderTabs();
+  renderList();
+}
+renderAll();
+</script>
+</body>
+</html>
