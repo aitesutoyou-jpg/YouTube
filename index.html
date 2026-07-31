@@ -58,7 +58,7 @@
   .np-meta-label { font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); margin-bottom:4px; }
   .np-title { font-family:'Fraunces', serif; font-size:18px; font-weight:600; }
   .np-channel { font-size:13px; color:#c9c2ac; margin-top:2px; }
-  .np-controls { display:flex; gap:10px; margin-top:10px; }
+  .np-controls { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
   .np-controls button { background:transparent; border:1px solid var(--paper); color:var(--paper); border-radius:3px; padding:6px 10px; cursor:pointer; display:flex; align-items:center; gap:4px; font-size:12.5px; }
   .videoframe-wrap { position:relative; padding-bottom:56.25%; height:0; }
   .videoframe-wrap iframe { position:absolute; inset:0; width:100%; height:100%; border:none; }
@@ -89,6 +89,15 @@
   .spin { animation: spin .9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .yt-hidden-host { width:2px; height:2px; overflow:hidden; position:absolute; opacity:0.01; pointer-events:none; }
+  .dim-overlay {
+    position:fixed; inset:0; background:#000; z-index:1000;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:18px; color:#4a4a44; cursor:pointer;
+  }
+  .dim-overlay .dim-title { font-family:'Fraunces', serif; font-size:15px; text-align:center; padding:0 32px; opacity:0.55; }
+  .dim-overlay .dim-eq { display:flex; gap:4px; align-items:flex-end; height:20px; }
+  .dim-overlay .dim-eq span { width:3px; background:#3a3630; animation:eqbar 1s ease-in-out infinite; }
+  .dim-overlay .dim-hint { font-family:'IBM Plex Mono', monospace; font-size:10.5px; opacity:0.35; }
 </style>
 </head>
 <body>
@@ -99,7 +108,7 @@
       <h1>パブリック・アーカイブ</h1>
       <span class="badge">YouTube 検索 &amp; プレイヤー</span>
     </div>
-    <p>YouTube動画を検索し、その場で再生します(ダウンロードは行わず、YouTube公式プレイヤーで再生します)。</p>
+    <p>YouTube動画を検索し、その場で再生します(ダウンロードは行わず、YouTube公式プレイヤーで再生します)。APIキーの登録は不要です。</p>
   </div>
 </header>
 
@@ -117,7 +126,6 @@
 <script>
 /* ---------- state ---------- */
 const state = {
-  apiKey: "",
   query: "",
   results: [],
   loading: false,
@@ -126,6 +134,10 @@ const state = {
   nowPlaying: null,
   collection: [],
   tab: "search",
+  wakeLockOn: false,
+  urlQueue: [],
+  autoPlayNext: true,
+  dimMode: false,
 };
 
 const CATEGORIES = ["自然","リラックスBGM","ジャズ","ドローン映像","都市の風景","料理","ダンス","アニメーション","サイエンス","宇宙"];
@@ -180,17 +192,55 @@ function extractVideoId(input) {
   return null;
 }
 
+async function resolveVideoMeta(id) {
+  let title = "直接指定した動画", channel = "", thumb = `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+  try {
+    const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent("https://www.youtube.com/watch?v=" + id)}&format=json`);
+    if (res.ok) {
+      const data = await res.json();
+      title = data.title || title;
+      channel = data.author_name || "";
+      thumb = data.thumbnail_url || thumb;
+    }
+  } catch (err) {
+    console.warn("oEmbed取得に失敗(再生自体は続行します):", err);
+  }
+  return { id, title, channel, thumb, duration: "--:--" };
+}
+
+function addToQueue(video) {
+  if (state.urlQueue.some((v) => v.id === video.id)) return; // avoid duplicates
+  state.urlQueue.push(video);
+  if (!state.nowPlaying) playVideo(video);
+  else renderAll();
+}
+function removeFromQueue(id) {
+  state.urlQueue = state.urlQueue.filter((v) => v.id !== id);
+  if (state.nowPlaying?.id === id) { state.nowPlaying = null; destroyPlayer(); }
+  renderAll();
+}
+function playNextInQueue() {
+  const idx = state.urlQueue.findIndex((v) => v.id === state.nowPlaying?.id);
+  if (idx >= 0 && idx + 1 < state.urlQueue.length) {
+    playVideo(state.urlQueue[idx + 1]);
+  }
+}
+
 function renderDirectUrlBox() {
   const slot = document.getElementById("directurl-slot");
   slot.innerHTML = "";
   const box = el(`
     <div class="urlbox">
-      <strong>URLを直接指定して再生</strong>
-      <p>検索を使わず、YouTubeの動画URL(または動画ID)を直接貼り付けて再生できます。この機能はAPIキーが無くても使えます。</p>
+      <strong>URLを直接指定してリストを作る</strong>
+      <p>検索を使わず、YouTubeの動画URL(または動画ID)を1件ずつ入力するとリストに追加されます。APIキー不要で使えます。</p>
       <form class="urlform" id="urlform">
         <input type="text" id="urlinput" placeholder="https://www.youtube.com/watch?v=... または動画ID" />
-        <button type="submit" class="btn btn-ox">再生</button>
+        <button type="submit" class="btn btn-ox">${icon("plus",15)} リストに追加</button>
       </form>
+      <label class="cclabel" style="margin-top:10px; display:flex;">
+        <input type="checkbox" id="autoplaynext" ${state.autoPlayNext ? "checked" : ""} /> 連続再生する(リストの次の動画へ自動で進む)
+      </label>
+      <div id="queue-list"></div>
     </div>
   `);
   slot.appendChild(box);
@@ -207,58 +257,72 @@ function renderDirectUrlBox() {
     document.getElementById("urlinput").value = "";
     state.error = "";
     renderError();
-    let title = "直接指定した動画";
-    let channel = "";
-    let thumb = `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
-    try {
-      // oEmbed doesn't require an API key and works even if the Data API key
-      // is missing/misconfigured — good fallback source for the title/author.
-      const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent("https://www.youtube.com/watch?v=" + id)}&format=json`);
-      if (res.ok) {
-        const data = await res.json();
-        title = data.title || title;
-        channel = data.author_name || "";
-        thumb = data.thumbnail_url || thumb;
-      }
-    } catch (err) {
-      console.warn("oEmbed取得に失敗(再生自体は続行します):", err);
-    }
-    playVideo({ id, title, channel, thumb, duration: "--:--" });
+    const video = await resolveVideoMeta(id);
+    addToQueue(video);
+  });
+  document.getElementById("autoplaynext").addEventListener("change", (e) => {
+    state.autoPlayNext = e.target.checked;
+  });
+  renderQueueList();
+}
+
+function renderQueueList() {
+  const listEl = document.getElementById("queue-list");
+  if (!listEl) return;
+  listEl.innerHTML = "";
+  if (state.urlQueue.length === 0) return;
+  const wrap = el(`<div style="margin-top:12px; display:flex; flex-direction:column; gap:6px;"></div>`);
+  state.urlQueue.forEach((v, i) => {
+    const playing = state.nowPlaying?.id === v.id;
+    const row = el(`
+      <div style="display:flex; align-items:center; gap:8px; background:${playing ? "#23282B" : "#fff"}; color:${playing ? "#EAE6D9" : "#23282B"}; border:1px solid ${playing ? "#23282B" : "#C9C2AC"}; border-radius:3px; padding:6px 8px;">
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:${playing ? "#A6862C" : "#5b5648"}; width:18px;">${i + 1}</span>
+        <img src="${v.thumb || ""}" alt="" style="width:44px; height:28px; object-fit:cover; border-radius:2px; flex-shrink:0;" />
+        <span style="flex:1; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${v.title}${playing ? " · 再生中" : ""}</span>
+        <button class="q-play" data-id="${v.id}" style="background:transparent; border:none; color:inherit; cursor:pointer; padding:4px;">${icon("play",14)}</button>
+        <button class="q-remove" data-id="${v.id}" style="background:transparent; border:none; color:inherit; cursor:pointer; padding:4px;">${icon("x",14)}</button>
+      </div>
+    `);
+    wrap.appendChild(row);
+  });
+  listEl.appendChild(wrap);
+  listEl.querySelectorAll(".q-play").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = state.urlQueue.find((x) => x.id === btn.dataset.id);
+      if (v) playVideo(v);
+    });
+  });
+  listEl.querySelectorAll(".q-remove").forEach((btn) => {
+    btn.addEventListener("click", () => removeFromQueue(btn.dataset.id));
   });
 }
 
-/* ---------- API key box ---------- */
+/* ---------- Invidious status box (replaces the old API-key box) ---------- */
 function renderKeyBox() {
   const slot = document.getElementById("keybox-slot");
   slot.innerHTML = "";
-  if (state.apiKey) return;
+  const label = invidiousStatus === "ok"
+    ? `検索サーバー: <b>${currentInstance || "接続中"}</b> に接続しました。`
+    : invidiousStatus === "error"
+    ? "検索サーバーに接続できませんでした。少し時間を置いて再読み込みするか、下の「URLを直接指定して再生」をお使いください。"
+    : "検索サーバーに接続しています…";
   const box = el(`
     <div class="keybox">
       <div style="display:flex;align-items:center;gap:8px;">
         ${icon("library", 18, "color:#A6862C")}
-        <strong>入館証(APIキー)の登録</strong>
+        <strong>APIキー不要モード</strong>
       </div>
-      <p>検索にはYouTube Data API v3のキーが必要です。Google Cloud ConsoleでYouTube Data API v3を有効化し、APIキーを発行してください。キーはこの画面内のメモリにのみ保持され、保存・送信先はGoogle APIのみです。</p>
-      <p style="color:#7A2E2E;">GitHub Pagesなどで検索が0件になる場合、Google Cloud ConsoleのAPIキー設定で「アプリケーションの制限」が「iOSアプリ」や未設定の「HTTPリファラー」になっていないか確認してください。「ウェブサイト」制限にして、公開先のドメイン(例: <code>あなたのユーザー名.github.io/*</code>)を許可リストに追加する必要があります。</p>
-      <form class="keyform" id="keyform">
-        <input type="text" id="keyinput" placeholder="YouTube Data API キーを入力" style="flex:1;" />
-        <button type="submit" class="btn btn-ink">登録する</button>
-      </form>
+      <p>検索はGoogleの公式APIではなく、Invidious(YouTubeの非公式・オープンソースのミラー)経由で行っています。APIキーの登録は不要です。ただし非公式のコミュニティ運営サービスのため、公式APIより不安定なことがあります(接続先が落ちていることがあります)。</p>
+      <p style="font-size:12.5px;">${label}</p>
     </div>
   `);
   slot.appendChild(box);
-  document.getElementById("keyform").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const v = document.getElementById("keyinput").value.trim();
-    if (v) { state.apiKey = v; renderAll(); runSearch(CATEGORIES[0]); }
-  });
 }
 
 /* ---------- search row + chips ---------- */
 function renderSearch() {
   const slot = document.getElementById("search-slot");
   slot.innerHTML = "";
-  if (!state.apiKey) return;
 
   const row = el(`
     <form class="searchrow" id="searchform">
@@ -284,6 +348,71 @@ function renderSearch() {
   });
 }
 
+/* ---------- Invidious backend (no API key required) ---------- */
+let invidiousInstances = null; // resolved list, cached for the session
+let currentInstance = null;    // last instance that worked
+let invidiousStatus = "connecting"; // "connecting" | "ok" | "error"
+
+async function getInstanceList() {
+  if (invidiousInstances) return invidiousInstances;
+  try {
+    const res = await fetch("https://api.invidious.io/instances.json?sort_by=type,health");
+    const data = await res.json();
+    invidiousInstances = data
+      .filter((entry) => {
+        const [, info] = entry;
+        return info.type === "https" && info.api !== false && info.uri;
+      })
+      .map((entry) => entry[1].uri.replace(/\/$/, ""));
+  } catch (e) {
+    invidiousInstances = [];
+  }
+  // A few long-lived fallbacks in case the instances directory itself is unreachable.
+  const fallbacks = ["https://inv.nadeko.net", "https://invidious.nerdvpn.de", "https://yt.chocolatemoo53.com"];
+  fallbacks.forEach((f) => { if (!invidiousInstances.includes(f)) invidiousInstances.push(f); });
+  return invidiousInstances;
+}
+
+// Tries instances in order (starting with whichever one last worked) until
+// one responds successfully. Returns parsed JSON or throws.
+async function invidiousFetch(path) {
+  const list = await getInstanceList();
+  const ordered = currentInstance ? [currentInstance, ...list.filter((i) => i !== currentInstance)] : list;
+  let lastErr = null;
+  for (const base of ordered) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(`${base}${path}`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) { lastErr = new Error(`HTTP ${res.status}`); continue; }
+      const data = await res.json();
+      currentInstance = base;
+      invidiousStatus = "ok";
+      return data;
+    } catch (err) {
+      lastErr = err;
+      continue;
+    }
+  }
+  invidiousStatus = "error";
+  throw lastErr || new Error("検索サーバーに接続できませんでした");
+}
+
+function formatDurationSeconds(sec) {
+  if (!sec && sec !== 0) return "--:--";
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+  const mm = h ? String(m).padStart(2, "0") : String(m);
+  const ss = String(s).padStart(2, "0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function pickThumb(thumbnails) {
+  if (!thumbnails || !thumbnails.length) return "";
+  const medium = thumbnails.find((t) => t.quality === "medium" || t.width === 320);
+  return (medium || thumbnails[Math.floor(thumbnails.length / 2)]).url;
+}
+
 /* ---------- error ---------- */
 function renderError() {
   const slot = document.getElementById("error-slot");
@@ -296,7 +425,6 @@ function renderError() {
 /* ---------- search logic ---------- */
 async function runSearch(term) {
   term = (term ?? state.query).trim();
-  if (!state.apiKey) { state.error = "先にYouTube Data APIキーを設定してください。"; renderError(); return; }
   if (!term) return;
   state.query = term;
   state.loading = true;
@@ -304,38 +432,22 @@ async function runSearch(term) {
   state.errorType = "";
   renderSearch(); renderError();
   try {
-    const params = new URLSearchParams({
-      part: "snippet", q: term, type: "video", maxResults: "12",
-      videoEmbeddable: "true", safeSearch: "strict", key: state.apiKey,
-    });
-    const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
-    if (!searchRes.ok) {
-      const errBody = await searchRes.json().catch(() => ({}));
-      throw new Error(
-        errBody?.error?.message
-          ? `${errBody.error.message} (HTTP ${searchRes.status})`
-          : `検索リクエストが失敗しました (HTTP ${searchRes.status})。APIキーが正しいか、YouTube Data API v3が有効化されているか確認してください。`
-      );
-    }
-    const searchData = await searchRes.json();
-    if (searchData.error) throw new Error(searchData.error.message || "検索に失敗しました");
-    const items = searchData.items || [];
-
-    if (items.length === 0) { state.results = []; }
-    else {
-      const ids = items.map((it) => it.id.videoId).join(",");
-      const detailRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,status&id=${ids}&key=${state.apiKey}`);
-      const detailData = await detailRes.json();
-      const durationMap = {};
-      (detailData.items || []).forEach((d) => { durationMap[d.id] = d.contentDetails?.duration; });
-      state.results = items.map((it) => ({
-        id: it.id.videoId, title: it.snippet.title, channel: it.snippet.channelTitle,
-        thumb: it.snippet.thumbnails?.medium?.url, duration: formatDuration(durationMap[it.id.videoId]),
-      }));
+    const data = await invidiousFetch(`/api/v1/search?q=${encodeURIComponent(term)}&type=video`);
+    const items = Array.isArray(data) ? data.filter((it) => it.type === "video") : [];
+    state.results = items.slice(0, 24).map((it) => ({
+      id: it.videoId,
+      title: it.title,
+      channel: it.author,
+      thumb: pickThumb(it.videoThumbnails),
+      duration: formatDurationSeconds(it.lengthSeconds),
+    }));
+    if (state.results.length === 0) {
+      state.error = `「${term}」に一致する動画が見つかりませんでした。`;
+      state.errorType = "info";
     }
   } catch (err) {
-    console.error("YouTube検索エラー:", err);
-    state.error = err.message || "検索中にエラーが発生しました。APIキーを確認してください。";
+    console.error("検索エラー:", err);
+    state.error = "検索サーバーに接続できませんでした。時間を置いて再読み込みするか、下の「URLを直接指定して再生」をお試しください。";
     state.errorType = "error";
     state.results = [];
   } finally {
@@ -373,6 +485,7 @@ function mountPlayer(video) {
           navigator.mediaSession.playbackState = e.data === S.PLAYING ? "playing" : e.data === S.PAUSED ? "paused" : "none";
         }
         updatePlayPauseIcon(e.data === S.PLAYING);
+        if (e.data === S.ENDED && state.autoPlayNext) playNextInQueue();
       },
       onPlaybackQualityChange: (e) => { if (e.data !== "tiny" && e.data !== "small") e.target.setPlaybackQuality("tiny"); },
     },
@@ -389,6 +502,39 @@ function setupMediaSession(video) {
   navigator.mediaSession.setActionHandler("play", () => ytPlayer?.playVideo?.());
   navigator.mediaSession.setActionHandler("pause", () => ytPlayer?.pauseVideo?.());
 }
+
+/* ---------- Wake Lock: keep the screen on so playback doesn't get
+   suspended by the OS turning the display off. This does NOT make
+   playback survive the phone being locked — it prevents the lock/
+   screen-off from happening in the first place while toggled on. ---------- */
+let wakeLockSentinel = null;
+
+async function enableWakeLock() {
+  if (!("wakeLock" in navigator)) {
+    state.error = "この端末・ブラウザはWake Lock APIに対応していないため、画面オンの維持はできません。";
+    state.errorType = "info";
+    renderError();
+    return false;
+  }
+  try {
+    wakeLockSentinel = await navigator.wakeLock.request("screen");
+    wakeLockSentinel.addEventListener("release", () => { wakeLockSentinel = null; });
+    return true;
+  } catch (err) {
+    console.warn("Wake Lock取得に失敗:", err);
+    return false;
+  }
+}
+function disableWakeLock() {
+  if (wakeLockSentinel) { wakeLockSentinel.release().catch(() => {}); wakeLockSentinel = null; }
+}
+// Wake Lock is released automatically when the tab is hidden; re-acquire it
+// once the user comes back if the toggle is still on.
+document.addEventListener("visibilitychange", async () => {
+  if (state.wakeLockOn && document.visibilityState === "visible" && !wakeLockSentinel) {
+    await enableWakeLock();
+  }
+});
 
 function updatePlayPauseIcon(isPlaying) {
   const btn = document.getElementById("np-playpause");
@@ -420,6 +566,11 @@ function syncNowPlaying() {
             <div class="eq"><span></span><span></span><span></span><span></span></div>
             <div class="np-controls">
               <button id="np-playpause">${icon("pause",14)} 一時停止</button>
+              <button id="np-wakelock">${state.wakeLockOn ? "画面オン維持: ON" : "画面オン維持: OFF"}</button>
+              <button id="np-dim">画面を暗くする</button>
+            </div>
+            <div style="font-size:11px; color:#a89f8a; margin-top:6px; max-width:420px;">
+              画面が消灯・ロックされると再生が止まることがあります。「画面オン維持」をONにすると端末が自動でスリープしなくなり、再生が途切れにくくなります(バッテリー消費は増えます)。
             </div>
           </div>
           <div class="yt-hidden-host" id="yt-host"></div>
@@ -434,7 +585,35 @@ function syncNowPlaying() {
     const s = ytPlayer.getPlayerState();
     if (s === YT.PlayerState.PLAYING) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
   });
+  document.getElementById("np-wakelock").addEventListener("click", async () => {
+    if (state.wakeLockOn) {
+      disableWakeLock();
+      state.wakeLockOn = false;
+    } else {
+      const ok = await enableWakeLock();
+      state.wakeLockOn = ok;
+    }
+    const btn = document.getElementById("np-wakelock");
+    if (btn) btn.textContent = state.wakeLockOn ? "画面オン維持: ON" : "画面オン維持: OFF";
+  });
+  document.getElementById("np-dim").addEventListener("click", () => showDimOverlay());
   mountPlayer(v);
+}
+
+// A near-black full-screen overlay to cut down on how much light the screen
+// emits during audio-only playback. This is a visual trick, not a real
+// hardware brightness control — the browser has no API to dim the device's
+// actual backlight. Tapping anywhere exits it.
+function showDimOverlay() {
+  const overlay = el(`
+    <div class="dim-overlay" id="dim-overlay">
+      <div class="dim-eq"><span></span><span></span><span></span><span></span></div>
+      <div class="dim-title">${state.nowPlaying ? state.nowPlaying.title : ""}</div>
+      <div class="dim-hint">タップして戻る</div>
+    </div>
+  `);
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", () => overlay.remove());
 }
 
 /* ---------- tabs ---------- */
@@ -459,7 +638,7 @@ function renderList() {
   const listShown = state.tab === "search" ? state.results : state.collection;
 
   if (state.tab === "search" && listShown.length === 0 && !state.loading) {
-    slot.appendChild(el(`<div class="empty">${state.apiKey ? "上のチップから気分のカテゴリを選ぶか、キーワードを入力してください。" : "入館証(APIキー)を登録すると検索できます。"}</div>`));
+    slot.appendChild(el(`<div class="empty">上のチップから気分のカテゴリを選ぶか、キーワードを入力してください。</div>`));
   }
   if (state.tab === "collection" && listShown.length === 0) {
     slot.appendChild(el(`<div class="empty">まだコレクションに追加された作品がありません。検索結果の「＋」から追加できます。</div>`));
@@ -515,6 +694,7 @@ function renderAll() {
   renderList();
 }
 renderAll();
+runSearch(CATEGORIES[0]);
 </script>
 </body>
 </html>
