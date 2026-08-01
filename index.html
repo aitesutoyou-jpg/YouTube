@@ -87,7 +87,9 @@ const state = {
   urlQueue: [],
   autoPlayNext: true,
   wakeLockOn: false,
+  playbackRate: 1,
 };
+const SPEED_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 let ytApiReady = false;
 let ytPlayer = null;
@@ -251,7 +253,7 @@ function mountPlayer(video) {
     width: "2", height: "2",
     playerVars: { autoplay: 1, playsinline: 1, controls: 0, vq: "tiny" },
     events: {
-      onReady: (e) => { e.target.setPlaybackQuality("tiny"); e.target.playVideo(); },
+      onReady: (e) => { e.target.setPlaybackQuality("tiny"); e.target.setPlaybackRate(state.playbackRate); e.target.playVideo(); },
       onStateChange: (e) => {
         const S = YT.PlayerState;
         if (e.data === S.PLAYING) e.target.setPlaybackQuality("tiny");
@@ -262,6 +264,11 @@ function mountPlayer(video) {
         if (e.data === S.ENDED && state.autoPlayNext) playNextInQueue();
       },
       onPlaybackQualityChange: (e) => { if (e.data !== "tiny" && e.data !== "small") e.target.setPlaybackQuality("tiny"); },
+      onPlaybackRateChange: (e) => {
+        state.playbackRate = e.data;
+        const btn = document.getElementById("np-speed");
+        if (btn) btn.textContent = `${e.data}x`;
+      },
     },
   });
   setupMediaSession(video);
@@ -348,6 +355,7 @@ function syncNowPlaying() {
         </div>
         <div class="np-btns">
           <button id="np-playpause" class="np-icon-btn" title="再生/一時停止">${icon("pause",14)}</button>
+          <button id="np-speed" class="np-icon-btn" title="再生速度" style="width:auto; padding:0 8px; font-family:'IBM Plex Mono', monospace; font-size:12px;">${state.playbackRate}x</button>
           <button id="np-dim" class="np-icon-btn" title="画面を暗くする">${icon("moon",14)}</button>
           <button id="np-wakelock" class="np-icon-btn ${state.wakeLockOn ? "active" : ""}" title="画面オン維持">${icon("eye",14)}</button>
         </div>
@@ -362,6 +370,13 @@ function syncNowPlaying() {
     if (s === YT.PlayerState.PLAYING) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
   });
   document.getElementById("np-dim").addEventListener("click", () => showDimOverlay());
+  document.getElementById("np-speed").addEventListener("click", () => {
+    const idx = SPEED_STEPS.indexOf(state.playbackRate);
+    const next = SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
+    state.playbackRate = next;
+    ytPlayer?.setPlaybackRate?.(next);
+    document.getElementById("np-speed").textContent = `${next}x`;
+  });
   document.getElementById("np-wakelock").addEventListener("click", async () => {
     if (state.wakeLockOn) { disableWakeLock(); state.wakeLockOn = false; }
     else { state.wakeLockOn = await enableWakeLock(); }
