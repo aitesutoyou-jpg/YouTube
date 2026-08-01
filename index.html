@@ -96,6 +96,38 @@ const state = {
 };
 const SPEED_STEPS = [1, 1.25, 1.5, 1.75, 2];
 
+/* ---------- persistence (localStorage) ----------
+   Keeps the playlist across app closes / reloads. Wrapped in try/catch
+   because localStorage can be unavailable (e.g. some sandboxed previews,
+   or Safari private browsing) — in that case the app just falls back to
+   an in-memory list for the current session, same as before. */
+const STORAGE_KEY = "cc-archive-queue-v1";
+const AUTOPLAY_KEY = "cc-archive-autoplay-v1";
+let storageAvailable = true;
+
+function saveQueue() {
+  if (!storageAvailable) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.urlQueue));
+    localStorage.setItem(AUTOPLAY_KEY, JSON.stringify(state.autoPlayNext));
+  } catch (e) {
+    storageAvailable = false;
+    console.warn("localStorageに保存できませんでした。このセッション内のみ保持されます。", e);
+  }
+}
+function loadQueue() {
+  try {
+    const q = localStorage.getItem(STORAGE_KEY);
+    const a = localStorage.getItem(AUTOPLAY_KEY);
+    if (q) state.urlQueue = JSON.parse(q);
+    if (a !== null) state.autoPlayNext = JSON.parse(a);
+  } catch (e) {
+    storageAvailable = false;
+    console.warn("localStorageから復元できませんでした。", e);
+  }
+}
+loadQueue();
+
 let ytApiReady = false;
 let ytPlayer = null;
 window.onYouTubeIframeAPIReady = function () {
@@ -160,11 +192,13 @@ async function resolveVideoMeta(id) {
 function addToQueue(video) {
   if (state.urlQueue.some((v) => v.id === video.id)) return;
   state.urlQueue.push(video);
+  saveQueue();
   if (!state.nowPlaying) playVideo(video);
   else renderAll();
 }
 function removeFromQueue(id) {
   state.urlQueue = state.urlQueue.filter((v) => v.id !== id);
+  saveQueue();
   if (state.nowPlaying?.id === id) { state.nowPlaying = null; destroyPlayer(); }
   renderAll();
 }
@@ -180,7 +214,7 @@ function renderDirectUrlBox() {
   const box = el(`
     <div class="urlbox">
       <strong>URLを入力してリストを作る</strong>
-      <p>YouTubeの動画URL(または動画ID)を1件ずつ入力するとリストに追加されます。</p>
+      <p>YouTubeの動画URL(または動画ID)を1件ずつ入力するとリストに追加されます。${storageAvailable ? "リストは端末に保存され、アプリを閉じても消えません。" : "この環境では保存機能が使えないため、閉じるとリストは消えます。"}</p>
       <form class="urlform" id="urlform">
         <input type="text" id="urlinput" placeholder="https://www.youtube.com/watch?v=... または動画ID" />
         <button type="submit" class="btn btn-ox">${icon("plus",15)} 追加</button>
@@ -210,6 +244,7 @@ function renderDirectUrlBox() {
   });
   document.getElementById("autoplaynext").addEventListener("change", (e) => {
     state.autoPlayNext = e.target.checked;
+    saveQueue();
   });
   renderQueueList();
 }
