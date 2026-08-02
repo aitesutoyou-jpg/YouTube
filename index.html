@@ -3,63 +3,54 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>パブリック・アーカイブ | YouTubeプレイヤー</title>
+<title>YouTube音声プレイヤー</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" />
 <style>
   :root {
-    --paper:#EAE6D9; --ink:#23282B; --card:#F5F1E6;
-    --oxblood:#7A2E2E; --brass:#A6862C; --sage:#566246; --muted:#5b5648; --line:#C9C2AC;
+    --paper:#EAE6D9; --ink:#23282B; --card:#F5F1E6; --panel:#141618;
+    --oxblood:#7A2E2E; --brass:#A6862C; --sage:#7c9169; --muted:#9a917d; --line:#33302a;
   }
   * { box-sizing: border-box; }
-  body { margin:0; font-family:'IBM Plex Sans', sans-serif; background:var(--paper); color:var(--ink); }
+  body { margin:0; font-family:'IBM Plex Sans', sans-serif; background:#000; color:var(--paper); }
   .wrap { max-width: 640px; margin: 0 auto; padding: 0 24px 48px; }
-  header { border-bottom: 3px solid var(--ink); padding: 28px 24px 20px; }
+  header { padding: 28px 24px 20px; }
   header .inner { max-width: 640px; margin: 0 auto; }
-  h1 { font-family:'Fraunces', serif; font-weight:700; font-size:28px; margin:0; letter-spacing:-0.01em; display:inline; }
+  h1 { font-family:'Fraunces', serif; font-weight:700; font-size:28px; margin:0; letter-spacing:-0.01em; display:inline; color:var(--paper); }
   .titlebar { display:flex; align-items:baseline; gap:10px; }
   .badge { font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--sage); border:1px solid var(--sage); border-radius:3px; padding:2px 6px; }
   header p { margin:6px 0 0; color:var(--muted); font-size:14px; }
 
-  .urlbox { margin-top:24px; background:#F5F1E6; border:1px solid var(--line); border-radius:4px; padding:16px 20px; }
-  .urlbox strong { font-family:'Fraunces', serif; font-size:16px; }
+  .urlbox { margin-top:24px; background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:16px 20px; }
+  .urlbox strong { font-family:'Fraunces', serif; font-size:16px; color:var(--paper); }
   .urlbox p { font-size:13px; color:var(--muted); margin:6px 0 12px; line-height:1.5; }
   .urlform { display:flex; gap:8px; flex-wrap:wrap; }
-  .urlform input { flex:1; min-width:180px; padding:9px 12px; border:1px solid var(--ink); border-radius:3px; font-size:13px; background:#fff; }
+  .urlform input { flex:1; min-width:180px; padding:9px 12px; border:1px solid var(--line); border-radius:3px; font-size:13px; background:#0c0d0e; color:var(--paper); }
   .btn { border:none; border-radius:3px; font-weight:600; cursor:pointer; font-family:'IBM Plex Sans', sans-serif; }
   .btn-ox { background:var(--oxblood); color:var(--card); padding:9px 16px; font-size:13px; display:flex; align-items:center; gap:6px; }
   .autoplaylabel { display:flex; align-items:center; gap:6px; font-size:12.5px; font-family:'IBM Plex Mono', monospace; color:var(--sage); cursor:pointer; user-select:none; margin-top:10px; }
 
-  .errbox { margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:#F5E6E1; border:1px solid var(--oxblood); border-radius:3px; padding:10px 12px; font-size:13px; color:var(--oxblood); }
-  .errbox.info { background:#F3F0E4; border-color:var(--brass); color:#5b4b1a; }
+  .errbox { margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:#2a1614; border:1px solid var(--oxblood); border-radius:3px; padding:10px 12px; font-size:13px; color:#e2a89c; }
+  .errbox.info { background:#2a2413; border-color:var(--brass); color:#d8bd7e; }
 
   /* compact now-playing bar */
-  .nowplaying { margin-top:24px; background:var(--ink); border-radius:4px; overflow:hidden; }
+  .nowplaying { margin-top:24px; background:var(--panel); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
   .np-compact { display:flex; flex-direction:column; gap:10px; padding:10px 12px; }
   .np-top { display:flex; align-items:center; gap:10px; }
   .np-thumb { width:52px; height:32px; object-fit:cover; border-radius:2px; flex-shrink:0; background:#333; }
-  .np-info { flex:1; min-width:0; color:#EAE6D9; }
+  .np-info { flex:1; min-width:0; color:var(--paper); }
   .np-title-c { font-family:'Fraunces', serif; font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .np-channel-c { font-size:11px; color:#a89f8a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .np-btns { display:flex; gap:6px; flex-wrap:wrap; }
-  .np-icon-btn { background:transparent; border:1px solid #4a5058; color:#EAE6D9; border-radius:3px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .np-seekrow { display:flex; align-items:center; gap:8px; }
+  .np-time { font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:#a89f8a; width:32px; flex-shrink:0; }
+  .np-time:last-child { text-align:right; }
+  .np-seekbar { flex:1; -webkit-appearance:none; appearance:none; height:4px; border-radius:2px; background:#4a5058; outline:none; margin:0; }
+  .np-seekbar::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:13px; height:13px; border-radius:50%; background:var(--brass); cursor:pointer; }
+  .np-seekbar::-moz-range-thumb { width:13px; height:13px; border-radius:50%; background:var(--brass); border:none; cursor:pointer; }
+  .np-icon-btn { background:transparent; border:1px solid #4a5058; color:var(--paper); border-radius:3px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
   .np-icon-btn.active { background:var(--brass); border-color:var(--brass); color:#23282B; }
 
   .yt-hidden-host { width:2px; height:2px; overflow:hidden; position:absolute; opacity:0.01; pointer-events:none; }
-  .dim-overlay {
-    position:fixed; inset:0; background:#000; z-index:1000;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:18px; color:#4a4a44; cursor:pointer;
-    touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
-  }
-  .dim-overlay .dim-title { font-family:'Fraunces', serif; font-size:15px; text-align:center; padding:0 32px; opacity:0.55; }
-  .dim-overlay .dim-eq { display:flex; gap:4px; align-items:flex-end; height:20px; }
-  .dim-overlay .dim-eq span { width:3px; background:#3a3630; animation:eqbar 1s ease-in-out infinite; }
-  .dim-overlay .dim-eq span:nth-child(2){ animation-delay:0.15s; } .dim-overlay .dim-eq span:nth-child(3){ animation-delay:0.3s; } .dim-overlay .dim-eq span:nth-child(4){ animation-delay:0.45s; }
-  @keyframes eqbar { 0%,100%{height:4px;} 50%{height:16px;} }
-  .dim-overlay .dim-hint { font-family:'IBM Plex Mono', monospace; font-size:10.5px; opacity:0.35; }
-  .dim-progress { width:120px; height:3px; background:#1a1a17; border-radius:2px; overflow:hidden; }
-  .dim-progress-fill { width:0%; height:100%; background:#5b5648; }
-  .dim-overlay.holding .dim-progress-fill { width:100%; transition:width 3s linear; }
 
   .queue-row { display:flex; align-items:center; gap:8px; border-radius:3px; padding:6px 8px; }
 </style>
@@ -68,18 +59,15 @@
 <header>
   <div class="inner">
     <div class="titlebar">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7A2E2E" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-      <h1>パブリック・アーカイブ</h1>
-      <span class="badge">シンプル・プレイヤー</span>
+      <h1>YouTube音声プレイヤー</h1>
     </div>
-    <p>YouTubeの動画URLを入力して再生します(ダウンロードは行わず、YouTube公式プレイヤーで再生します)。</p>
   </div>
 </header>
 
 <div class="wrap">
-  <div id="directurl-slot"></div>
-  <div id="error-slot"></div>
   <div id="nowplaying-slot"></div>
+  <div id="error-slot"></div>
+  <div id="directurl-slot"></div>
 </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
@@ -146,6 +134,8 @@ function icon(name, size = 14, extra = "") {
     alert: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
     moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+    skipback: '<polygon points="19 20 9 12 19 4 19 20" fill="currentColor"/><line x1="5" y1="19" x2="5" y2="5"/>',
+    skipforward: '<polygon points="5 4 15 12 5 20 5 4" fill="currentColor"/><line x1="19" y1="5" x2="19" y2="19"/>',
   };
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${extra}">${paths[name] || ""}</svg>`;
 }
@@ -206,6 +196,10 @@ function playNextInQueue() {
   const idx = state.urlQueue.findIndex((v) => v.id === state.nowPlaying?.id);
   if (idx >= 0 && idx + 1 < state.urlQueue.length) playVideo(state.urlQueue[idx + 1]);
 }
+function playPrevInQueue() {
+  const idx = state.urlQueue.findIndex((v) => v.id === state.nowPlaying?.id);
+  if (idx > 0) playVideo(state.urlQueue[idx - 1]);
+}
 function playVideo(v) { state.nowPlaying = v; syncNowPlaying(); renderAll(); }
 
 function renderDirectUrlBox() {
@@ -213,8 +207,7 @@ function renderDirectUrlBox() {
   slot.innerHTML = "";
   const box = el(`
     <div class="urlbox">
-      <strong>URLを入力してリストを作る</strong>
-      <p>YouTubeの動画URL(または動画ID)を1件ずつ入力するとリストに追加されます。${storageAvailable ? "リストは端末に保存され、アプリを閉じても消えません。" : "この環境では保存機能が使えないため、閉じるとリストは消えます。"}</p>
+      ${storageAvailable ? "" : '<p style="color:#7A2E2E; font-size:12.5px; margin:0 0 10px;">この環境では保存機能が使えないため、閉じるとリストは消えます。</p>'}
       <form class="urlform" id="urlform">
         <input type="text" id="urlinput" placeholder="https://www.youtube.com/watch?v=... または動画ID" />
         <button type="submit" class="btn btn-ox">${icon("plus",15)} 追加</button>
@@ -258,7 +251,7 @@ function renderQueueList() {
   state.urlQueue.forEach((v, i) => {
     const playing = state.nowPlaying?.id === v.id;
     const row = el(`
-      <div class="queue-row" style="background:${playing ? "#23282B" : "#fff"}; color:${playing ? "#EAE6D9" : "#23282B"}; border:1px solid ${playing ? "#23282B" : "#C9C2AC"};">
+      <div class="queue-row" style="background:${playing ? "#2a2f33" : "#141618"}; color:#EAE6D9; border:1px solid ${playing ? "#5a6570" : "#33302a"};">
         <span style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:${playing ? "#A6862C" : "#5b5648"}; width:18px;">${i + 1}</span>
         <img src="${v.thumb || ""}" alt="" style="width:44px; height:28px; object-fit:cover; border-radius:2px; flex-shrink:0;" />
         <span style="flex:1; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${v.title}${playing ? " · 再生中" : ""}</span>
@@ -281,7 +274,36 @@ function renderQueueList() {
 }
 
 /* ---------- player ---------- */
-function destroyPlayer() { if (ytPlayer) { try { ytPlayer.destroy(); } catch (e) {} ytPlayer = null; } }
+let seekInterval = null;
+function stopSeekInterval() { if (seekInterval) { clearInterval(seekInterval); seekInterval = null; } }
+function destroyPlayer() { stopSeekInterval(); if (ytPlayer) { try { ytPlayer.destroy(); } catch (e) {} ytPlayer = null; } }
+
+function formatTime(sec) {
+  if (!sec && sec !== 0) return "0:00";
+  sec = Math.floor(sec);
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function startSeekInterval() {
+  stopSeekInterval();
+  seekInterval = setInterval(() => {
+    if (!ytPlayer || seeking) return;
+    const bar = document.getElementById("np-seek");
+    const cur = document.getElementById("np-time-cur");
+    const dur = document.getElementById("np-time-dur");
+    if (!bar) return;
+    try {
+      const duration = ytPlayer.getDuration() || 0;
+      const current = ytPlayer.getCurrentTime() || 0;
+      bar.max = duration || 0;
+      bar.value = current;
+      if (cur) cur.textContent = formatTime(current);
+      if (dur) dur.textContent = formatTime(duration);
+    } catch (e) { /* player not ready yet */ }
+  }, 500);
+}
+let seeking = false;
 
 function mountPlayer(video) {
   if (!ytApiReady) return;
@@ -293,7 +315,12 @@ function mountPlayer(video) {
     width: "2", height: "2",
     playerVars: { autoplay: 1, playsinline: 1, controls: 0, vq: "tiny" },
     events: {
-      onReady: (e) => { e.target.setPlaybackQuality("tiny"); e.target.setPlaybackRate(state.playbackRate); e.target.playVideo(); },
+      onReady: (e) => {
+        e.target.setPlaybackQuality("tiny");
+        e.target.setPlaybackRate(state.playbackRate);
+        e.target.playVideo();
+        startSeekInterval();
+      },
       onStateChange: (e) => {
         const S = YT.PlayerState;
         if (e.data === S.PLAYING) e.target.setPlaybackQuality("tiny");
@@ -301,7 +328,7 @@ function mountPlayer(video) {
           navigator.mediaSession.playbackState = e.data === S.PLAYING ? "playing" : e.data === S.PAUSED ? "paused" : "none";
         }
         updatePlayPauseIcon(e.data === S.PLAYING);
-        if (e.data === S.ENDED && state.autoPlayNext) playNextInQueue();
+        if (e.data === S.ENDED) { stopSeekInterval(); if (state.autoPlayNext) playNextInQueue(); }
       },
       onPlaybackQualityChange: (e) => { if (e.data !== "tiny" && e.data !== "small") e.target.setPlaybackQuality("tiny"); },
       onPlaybackRateChange: (e) => {
@@ -358,50 +385,6 @@ document.addEventListener("visibilitychange", async () => {
   }
 });
 
-// Near-black full-screen overlay to visually cut down on emitted light.
-// Not a real hardware brightness control (browsers don't expose one).
-// Exiting requires a 3-second press-and-hold, so an accidental tap while
-// the phone is in a pocket/bag doesn't wake the screen back up.
-function showDimOverlay() {
-  const HOLD_MS = 3000;
-  let holdTimer = null;
-  const overlay = el(`
-    <div class="dim-overlay" id="dim-overlay">
-      <div class="dim-eq"><span></span><span></span><span></span><span></span></div>
-      <div class="dim-title">${state.nowPlaying ? state.nowPlaying.title : ""}</div>
-      <div class="dim-progress"><div class="dim-progress-fill" id="dim-progress-fill"></div></div>
-      <div class="dim-hint">3秒間 長押しして戻る</div>
-    </div>
-  `);
-  document.body.appendChild(overlay);
-  const fill = overlay.querySelector("#dim-progress-fill");
-
-  const startHold = (e) => {
-    if (e.cancelable) e.preventDefault();
-    if (holdTimer) return; // already holding, ignore duplicate start events
-    overlay.classList.add("holding");
-    holdTimer = setTimeout(() => overlay.remove(), HOLD_MS);
-  };
-  const cancelHold = () => {
-    clearTimeout(holdTimer);
-    holdTimer = null;
-    overlay.classList.remove("holding");
-  };
-  // Pointer events cover most browsers; touch/mouse are added as a fallback
-  // for iOS Safari quirks where pointer events can be inconsistent inside
-  // a fixed full-screen overlay.
-  overlay.addEventListener("pointerdown", startHold);
-  overlay.addEventListener("pointerup", cancelHold);
-  overlay.addEventListener("pointerleave", cancelHold);
-  overlay.addEventListener("pointercancel", cancelHold);
-  overlay.addEventListener("touchstart", startHold, { passive: false });
-  overlay.addEventListener("touchend", cancelHold);
-  overlay.addEventListener("touchcancel", cancelHold);
-  overlay.addEventListener("mousedown", startHold);
-  overlay.addEventListener("mouseup", cancelHold);
-  overlay.addEventListener("mouseleave", cancelHold);
-}
-
 /* ---------- now playing (compact) ---------- */
 let renderedNowPlayingId = null;
 
@@ -425,10 +408,16 @@ function syncNowPlaying() {
             <div class="np-channel-c">${v.channel || ""}</div>
           </div>
         </div>
+        <div class="np-seekrow">
+          <span class="np-time" id="np-time-cur">0:00</span>
+          <input type="range" id="np-seek" class="np-seekbar" min="0" max="100" value="0" step="1" />
+          <span class="np-time" id="np-time-dur">0:00</span>
+        </div>
         <div class="np-btns">
+          <button id="np-prev" class="np-icon-btn" title="前の動画">${icon("skipback",14)}</button>
           <button id="np-playpause" class="np-icon-btn" title="再生/一時停止">${icon("pause",14)}</button>
+          <button id="np-next" class="np-icon-btn" title="次の動画">${icon("skipforward",14)}</button>
           <button id="np-speed" class="np-icon-btn" title="再生速度" style="width:auto; padding:0 10px; font-family:'IBM Plex Mono', monospace; font-size:12px;">${state.playbackRate}x</button>
-          <button id="np-dim" class="np-icon-btn" title="画面を暗くする">${icon("moon",14)}</button>
           <button id="np-wakelock" class="np-icon-btn ${state.wakeLockOn ? "active" : ""}" title="画面オン維持">${icon("eye",14)}</button>
         </div>
       </div>
@@ -441,7 +430,18 @@ function syncNowPlaying() {
     const s = ytPlayer.getPlayerState();
     if (s === YT.PlayerState.PLAYING) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
   });
-  document.getElementById("np-dim").addEventListener("click", () => showDimOverlay());
+  document.getElementById("np-prev").addEventListener("click", () => playPrevInQueue());
+  document.getElementById("np-next").addEventListener("click", () => playNextInQueue());
+  const seekBar = document.getElementById("np-seek");
+  seekBar.addEventListener("input", () => {
+    seeking = true;
+    const cur = document.getElementById("np-time-cur");
+    if (cur) cur.textContent = formatTime(seekBar.value);
+  });
+  seekBar.addEventListener("change", () => {
+    if (ytPlayer) ytPlayer.seekTo(Number(seekBar.value), true);
+    seeking = false;
+  });
   document.getElementById("np-speed").addEventListener("click", () => {
     const idx = SPEED_STEPS.indexOf(state.playbackRate);
     const next = SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
