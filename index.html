@@ -36,9 +36,9 @@
   .nowplaying-full {
     min-height:100vh; min-height:100svh; width:100%;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:20px; padding:32px 24px 60px; text-align:center; position:relative;
+    gap:18px; padding:32px 20px 60px; text-align:center; position:relative;
   }
-  .np-thumb-big { width:min(72vw, 320px); height:min(72vw, 320px); object-fit:cover; border-radius:10px; background:#141618; box-shadow:0 12px 40px rgba(0,0,0,0.5); }
+  .np-thumb-big { width:120px; height:120px; object-fit:cover; border-radius:8px; background:#141618; box-shadow:0 8px 24px rgba(0,0,0,0.5); }
   .np-text-big { max-width:min(90vw, 420px); }
   .np-title-c { font-family:'Fraunces', serif; font-size:19px; font-weight:600; color:var(--paper); line-height:1.35; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
   .np-channel-c { font-size:13px; color:#a89f8a; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -48,14 +48,13 @@
   .np-seekbar { flex:1; -webkit-appearance:none; appearance:none; height:5px; border-radius:3px; background:#4a5058; outline:none; margin:0; }
   .np-seekbar::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:17px; height:17px; border-radius:50%; background:var(--brass); cursor:pointer; }
   .np-seekbar::-moz-range-thumb { width:17px; height:17px; border-radius:50%; background:var(--brass); border:none; cursor:pointer; }
-  .np-main-controls { display:flex; align-items:center; justify-content:center; gap:28px; margin-top:4px; }
-  .np-sub-controls { display:flex; align-items:center; justify-content:center; gap:14px; }
-  .np-icon-btn { background:transparent; border:1px solid #4a5058; color:var(--paper); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .np-main-controls { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:4px; }
+  .np-sub-controls { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; }
+  .np-icon-btn { background:transparent; border:1px solid #4a5058; color:var(--paper); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; font-family:'IBM Plex Mono', monospace; font-size:15px; }
   .np-icon-btn.active { background:var(--brass); border-color:var(--brass); color:#23282B; }
-  .np-btn-sm { width:44px; height:44px; }
-  .np-btn-md { width:56px; height:56px; }
-  .np-btn-lg { width:80px; height:80px; }
+  .np-btn-lg { width:64px; height:64px; }
   .np-btn-accent { background:var(--oxblood); border-color:var(--oxblood); }
+  .np-skip-label { position:absolute; bottom:8px; font-family:'IBM Plex Mono', monospace; font-size:9px; font-weight:600; }
   .np-scrolldown { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); background:transparent; border:none; color:#7a7568; font-family:'IBM Plex Mono', monospace; font-size:11px; display:flex; align-items:center; gap:4px; cursor:pointer; padding:6px 10px; }
 
   .yt-hidden-host { width:2px; height:2px; overflow:hidden; position:absolute; opacity:0.01; pointer-events:none; }
@@ -179,6 +178,8 @@ function icon(name, size = 14, extra = "") {
     skipforward: '<polygon points="5 4 15 12 5 20 5 4" fill="currentColor"/><line x1="19" y1="5" x2="19" y2="19"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     loader: '<line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>',
+    rewind: '<polygon points="11 19 2 12 11 5 11 19" fill="currentColor"/><polygon points="22 19 13 12 22 5 22 19" fill="currentColor"/>',
+    fastforward: '<polygon points="13 19 22 12 13 5 13 19" fill="currentColor"/><polygon points="2 19 11 12 2 5 2 19" fill="currentColor"/>',
   };
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${extra}">${paths[name] || ""}</svg>`;
 }
@@ -227,7 +228,12 @@ async function enrichVideoMeta(id) {
     renderQueueList();
     const titleEl = document.querySelector(".np-title-c");
     const channelEl = document.querySelector(".np-channel-c");
-    if (state.nowPlaying?.id === id && titleEl) { titleEl.textContent = patch.title; if (channelEl) channelEl.textContent = patch.channel; }
+    const thumbEl = document.querySelector(".np-thumb-big");
+    if (state.nowPlaying?.id === id) {
+      if (titleEl) titleEl.textContent = patch.title;
+      if (channelEl) channelEl.textContent = patch.channel;
+      if (thumbEl && patch.thumb) thumbEl.src = patch.thumb;
+    }
   } catch (err) {
     console.warn("oEmbed取得に失敗(再生自体は継続しています):", err);
   }
@@ -237,8 +243,7 @@ function addToQueue(video) {
   if (state.urlQueue.some((v) => v.id === video.id)) return;
   state.urlQueue.push(video);
   saveQueue();
-  if (!state.nowPlaying) playVideo(video);
-  else renderAll();
+  renderAll(); // just add to the list — don't start playback automatically
 }
 function removeFromQueue(id) {
   state.urlQueue = state.urlQueue.filter((v) => v.id !== id);
@@ -371,6 +376,23 @@ function mountPlayer(video) {
     if (btn) { btn.disabled = true; btn.innerHTML = icon("loader", 30, "animation: spin 1s linear infinite;"); }
     return;
   }
+  // Reuse the existing player/iframe when possible: recreating a fresh
+  // iframe on every track change loses the "autoplay allowed" permission
+  // the browser granted at the original user gesture, which silently
+  // blocked auto-advance to the next track. loadVideoById() keeps the same
+  // iframe alive and just swaps the video.
+  if (ytPlayer && typeof ytPlayer.loadVideoById === "function") {
+    try {
+      stopSeekInterval();
+      ytPlayer.loadVideoById(video.id);
+      ytPlayer.setPlaybackRate(state.playbackRate);
+      startSeekInterval();
+      setupMediaSession(video);
+      return;
+    } catch (e) {
+      console.warn("既存プレイヤーの再利用に失敗、再生成します:", e);
+    }
+  }
   destroyPlayer();
   const host = document.getElementById("yt-host");
   if (!host) return;
@@ -488,40 +510,36 @@ function showLockOverlay() {
   overlay.addEventListener("mouseleave", cancelHold);
 }
 
-/* ---------- now playing (compact) ---------- */
+/* ---------- now playing (fullscreen) ---------- */
 let renderedNowPlayingId = null;
 
-function syncNowPlaying() {
+function buildNowPlayingPanel(v) {
   const slot = document.getElementById("nowplaying-slot");
-  if (!state.nowPlaying) {
-    if (renderedNowPlayingId !== null) { slot.innerHTML = ""; renderedNowPlayingId = null; }
-    return;
-  }
-  if (state.nowPlaying.id === renderedNowPlayingId) return;
-  renderedNowPlayingId = state.nowPlaying.id;
-  const v = state.nowPlaying;
   slot.innerHTML = "";
   const panel = el(`
     <div class="nowplaying-full">
-      <img class="np-thumb-big" src="${v.thumb || ""}" alt="" />
       <div class="np-text-big">
         <div class="np-title-c">${v.title}</div>
         <div class="np-channel-c">${v.channel || ""}</div>
       </div>
+      <img class="np-thumb-big" src="${v.thumb || ""}" alt="" />
       <div class="np-seekrow-big">
         <span class="np-time" id="np-time-cur">0:00</span>
         <input type="range" id="np-seek" class="np-seekbar" min="0" max="100" value="0" step="1" />
         <span class="np-time" id="np-time-dur">0:00</span>
       </div>
       <div class="np-main-controls">
-        <button id="np-prev" class="np-icon-btn np-btn-md" title="前の動画">${icon("skipback",22)}</button>
+        <button id="np-prev" class="np-icon-btn np-btn-lg" title="前の動画">${icon("skipback",26)}</button>
+        <button id="np-back30" class="np-icon-btn np-btn-lg" title="30秒戻る">${icon("rewind",22)}<span class="np-skip-label">30</span></button>
+        <button id="np-back10" class="np-icon-btn np-btn-lg" title="10秒戻る">${icon("rewind",22)}<span class="np-skip-label">10</span></button>
         <button id="np-playpause" class="np-icon-btn np-btn-lg np-btn-accent" title="再生/一時停止">${icon("pause",30)}</button>
-        <button id="np-next" class="np-icon-btn np-btn-md" title="次の動画">${icon("skipforward",22)}</button>
+        <button id="np-fwd30" class="np-icon-btn np-btn-lg" title="30秒進む">${icon("fastforward",22)}<span class="np-skip-label">30</span></button>
+        <button id="np-next" class="np-icon-btn np-btn-lg" title="次の動画">${icon("skipforward",26)}</button>
       </div>
       <div class="np-sub-controls">
-        <button id="np-speed" class="np-icon-btn np-btn-sm" title="再生速度" style="width:auto; padding:0 14px; font-family:'IBM Plex Mono', monospace; font-size:14px;">${state.playbackRate}x</button>
-        <button id="np-wakelock" class="np-icon-btn np-btn-sm ${state.wakeLockOn ? "active" : ""}" title="画面オン維持">${icon("eye",20)}</button>
-        <button id="np-lock" class="np-icon-btn np-btn-sm" title="誤作動防止(ロック)">${icon("lock",20)}</button>
+        <button id="np-speed" class="np-icon-btn np-btn-lg" title="再生速度">${state.playbackRate}x</button>
+        <button id="np-wakelock" class="np-icon-btn np-btn-lg ${state.wakeLockOn ? "active" : ""}" title="画面オン維持">${icon("eye",26)}</button>
+        <button id="np-lock" class="np-icon-btn np-btn-lg" title="誤作動防止(ロック)">${icon("lock",26)}</button>
       </div>
       <button id="np-scrolldown" class="np-scrolldown" title="リストを見る">${icon("skipback",16,"transform:rotate(-90deg);")} リスト</button>
       <div class="yt-hidden-host" id="yt-host"></div>
@@ -531,16 +549,14 @@ function syncNowPlaying() {
   document.getElementById("np-playpause").addEventListener("click", () => {
     if (!ytPlayer) return;
     const s = ytPlayer.getPlayerState();
-    if (s === YT.PlayerState.PLAYING) {
-      ytPlayer.pauseVideo();
-      updatePlayPauseIcon(false);
-    } else {
-      ytPlayer.playVideo();
-      updatePlayPauseIcon(true);
-    }
+    if (s === YT.PlayerState.PLAYING) { ytPlayer.pauseVideo(); updatePlayPauseIcon(false); }
+    else { ytPlayer.playVideo(); updatePlayPauseIcon(true); }
   });
   document.getElementById("np-prev").addEventListener("click", () => playPrevInQueue());
   document.getElementById("np-next").addEventListener("click", () => playNextInQueue());
+  document.getElementById("np-back30").addEventListener("click", () => seekBy(-30));
+  document.getElementById("np-back10").addEventListener("click", () => seekBy(-10));
+  document.getElementById("np-fwd30").addEventListener("click", () => seekBy(30));
   const seekBar = document.getElementById("np-seek");
   seekBar.addEventListener("input", () => {
     seeking = true;
@@ -567,6 +583,54 @@ function syncNowPlaying() {
   document.getElementById("np-scrolldown").addEventListener("click", () => {
     document.getElementById("directurl-slot").scrollIntoView({ behavior: "smooth" });
   });
+}
+
+function seekBy(deltaSec) {
+  if (!ytPlayer) return;
+  try {
+    const dur = ytPlayer.getDuration() || 0;
+    const cur = ytPlayer.getCurrentTime() || 0;
+    const target = Math.max(0, Math.min(dur, cur + deltaSec));
+    ytPlayer.seekTo(target, true);
+  } catch (e) { /* player not ready */ }
+}
+
+function updateNowPlayingText(v) {
+  const titleEl = document.querySelector(".np-title-c");
+  const channelEl = document.querySelector(".np-channel-c");
+  const thumbEl = document.querySelector(".np-thumb-big");
+  if (titleEl) titleEl.textContent = v.title;
+  if (channelEl) channelEl.textContent = v.channel || "";
+  if (thumbEl) thumbEl.src = v.thumb || "";
+  const curEl = document.getElementById("np-time-cur");
+  const durEl = document.getElementById("np-time-dur");
+  const bar = document.getElementById("np-seek");
+  if (curEl) curEl.textContent = "0:00";
+  if (durEl) durEl.textContent = "0:00";
+  if (bar) bar.value = 0;
+}
+
+function syncNowPlaying() {
+  const slot = document.getElementById("nowplaying-slot");
+  if (!state.nowPlaying) {
+    if (renderedNowPlayingId !== null) { slot.innerHTML = ""; renderedNowPlayingId = null; destroyPlayer(); }
+    return;
+  }
+  const v = state.nowPlaying;
+  if (renderedNowPlayingId === null) {
+    // First video of the session: build the panel and player from scratch.
+    renderedNowPlayingId = v.id;
+    buildNowPlayingPanel(v);
+    mountPlayer(v);
+    return;
+  }
+  if (v.id === renderedNowPlayingId) return; // same track, nothing to do
+  // Switching tracks: update the visible text/art in place and hand the new
+  // video id to mountPlayer(), which reuses the existing iframe/player
+  // instead of tearing the panel down (see mountPlayer for why that matters
+  // for auto-advance to keep working).
+  renderedNowPlayingId = v.id;
+  updateNowPlayingText(v);
   mountPlayer(v);
 }
 
