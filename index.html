@@ -243,8 +243,14 @@ function addToQueue(video) {
   renderAll(); // just add to the list — don't start playback automatically
 }
 function removeFromQueue(id) {
+  const removed = state.urlQueue.find((v) => v.id === id);
   state.urlQueue = state.urlQueue.filter((v) => v.id !== id);
   saveQueue();
+  if (removed) {
+    state.history.unshift({ ...removed, playedAt: Date.now() });
+    if (state.history.length > 100) state.history.length = 100;
+    saveHistory();
+  }
   if (state.nowPlaying?.id === id) { state.nowPlaying = null; destroyPlayer(); }
   renderAll();
 }
@@ -305,8 +311,8 @@ function renderDirectUrlBox() {
         <input type="checkbox" id="autoplaynext" ${state.autoPlayNext ? "checked" : ""} /> 連続再生する(次の動画へ自動で進む)
       </label>
       <div id="queue-list"></div>
+      <div id="history-box"></div>
     </div>
-    <div id="history-box"></div>
   `);
   slot.appendChild(box);
   document.getElementById("urlform").addEventListener("submit", (e) => {
@@ -375,7 +381,7 @@ function renderHistory() {
   box.innerHTML = "";
   if (state.history.length === 0) return;
   const wrap = el(`
-    <div class="urlbox" style="margin-top:16px;">
+    <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--line);">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
         <strong style="font-family:'Fraunces', serif; font-size:14px; color:var(--paper);">履歴</strong>
         <button id="history-clear" style="background:transparent; border:none; color:#7a7568; font-size:11px; cursor:pointer;">履歴を消去</button>
