@@ -83,11 +83,12 @@ const state = {
   errorType: "",
   nowPlaying: null,
   urlQueue: [],
+  history: [],
   autoPlayNext: true,
   wakeLockOn: false,
-  playbackRate: 1,
+  playbackRate: 1.25,
 };
-const SPEED_STEPS = [1, 1.25, 1.5, 1.75, 2];
+const SPEED_STEPS = [1.25, 1.5];
 
 /* ---------- persistence (localStorage) ----------
    Keeps the playlist across app closes / reloads. Wrapped in try/catch
@@ -96,6 +97,7 @@ const SPEED_STEPS = [1, 1.25, 1.5, 1.75, 2];
    an in-memory list for the current session, same as before. */
 const STORAGE_KEY = "cc-archive-queue-v1";
 const AUTOPLAY_KEY = "cc-archive-autoplay-v1";
+const HISTORY_KEY = "cc-archive-history-v1";
 let storageAvailable = true;
 
 function saveQueue() {
@@ -108,12 +110,22 @@ function saveQueue() {
     console.warn("localStorageに保存できませんでした。このセッション内のみ保持されます。", e);
   }
 }
+function saveHistory() {
+  if (!storageAvailable) return;
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history));
+  } catch (e) {
+    storageAvailable = false;
+  }
+}
 function loadQueue() {
   try {
     const q = localStorage.getItem(STORAGE_KEY);
     const a = localStorage.getItem(AUTOPLAY_KEY);
+    const h = localStorage.getItem(HISTORY_KEY);
     if (q) state.urlQueue = JSON.parse(q);
     if (a !== null) state.autoPlayNext = JSON.parse(a);
+    if (h) state.history = JSON.parse(h);
   } catch (e) {
     storageAvailable = false;
     console.warn("localStorageから復元できませんでした。", e);
@@ -244,6 +256,39 @@ function playPrevInQueue() {
   const idx = state.urlQueue.findIndex((v) => v.id === state.nowPlaying?.id);
   if (idx > 0) playVideo(state.urlQueue[idx - 1]);
 }
+
+// Called when a video finishes playing to the end (not on manual skip/prev):
+// files it into history and removes it from the active list, then — if
+// autoplay is on — continues into whatever was next in the queue.
+function handleVideoEnded() {
+  const finished = state.nowPlaying;
+  if (!finished) return;
+  const idx = state.urlQueue.findIndex((v) => v.id === finished.id);
+  const next = state.autoPlayNext && idx >= 0 && idx + 1 < state.urlQueue.length ? state.urlQueue[idx + 1] : null;
+
+  state.urlQueue = state.urlQueue.filter((v) => v.id !== finished.id);
+  state.history.unshift({ ...finished, playedAt: Date.now() });
+  if (state.history.length > 100) state.history.length = 100;
+  saveQueue();
+  saveHistory();
+
+  if (next) {
+    playVideo(next);
+  } else {
+    state.nowPlaying = null;
+    renderAll();
+  }
+}
+
+function replayFromHistory(video) {
+  addToQueue({ id: video.id, title: video.title, channel: video.channel, thumb: video.thumb });
+}
+function clearHistory() {
+  state.history = [];
+  saveHistory();
+  renderAll();
+}
+
 function playVideo(v) { state.nowPlaying = v; syncNowPlaying(); renderAll(); }
 
 function renderDirectUrlBox() {
@@ -261,6 +306,7 @@ function renderDirectUrlBox() {
       </label>
       <div id="queue-list"></div>
     </div>
+    <div id="history-box"></div>
   `);
   slot.appendChild(box);
   document.getElementById("urlform").addEventListener("submit", (e) => {
@@ -289,6 +335,7 @@ function renderDirectUrlBox() {
     saveQueue();
   });
   renderQueueList();
+  renderHistory();
 }
 
 function renderQueueList() {
@@ -320,6 +367,41 @@ function renderQueueList() {
   listEl.querySelectorAll(".q-remove").forEach((btn) => {
     btn.addEventListener("click", () => removeFromQueue(btn.dataset.id));
   });
+}
+
+function renderHistory() {
+  const box = document.getElementById("history-box");
+  if (!box) return;
+  box.innerHTML = "";
+  if (state.history.length === 0) return;
+  const wrap = el(`
+    <div class="urlbox" style="margin-top:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <strong style="font-family:'Fraunces', serif; font-size:14px; color:var(--paper);">履歴</strong>
+        <button id="history-clear" style="background:transparent; border:none; color:#7a7568; font-size:11px; cursor:pointer;">履歴を消去</button>
+      </div>
+      <div id="history-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+  `);
+  box.appendChild(wrap);
+  const listEl = wrap.querySelector("#history-list");
+  state.history.forEach((v) => {
+    const row = el(`
+      <div class="queue-row" style="background:#141618; color:#EAE6D9; border:1px solid #33302a;">
+        <img src="${v.thumb || ""}" alt="" style="width:44px; height:28px; object-fit:cover; border-radius:2px; flex-shrink:0;" />
+        <span style="flex:1; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:0.75;">${v.title}</span>
+        <button class="h-replay" data-id="${v.id}" style="background:transparent; border:none; color:inherit; cursor:pointer; padding:4px;" title="リストに戻す">${icon("plus",14)}</button>
+      </div>
+    `);
+    listEl.appendChild(row);
+  });
+  listEl.querySelectorAll(".h-replay").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = state.history.find((x) => x.id === btn.dataset.id);
+      if (v) replayFromHistory(v);
+    });
+  });
+  wrap.querySelector("#history-clear").addEventListener("click", () => clearHistory());
 }
 
 /* ---------- player ---------- */
@@ -394,23 +476,44 @@ function mountPlayer(video) {
       },
       onStateChange: (e) => {
         const S = YT.PlayerState;
-        if (e.data === S.PLAYING) e.target.setPlaybackQuality("tiny");
+        if (e.data === S.PLAYING) {
+          e.target.setPlaybackQuality("tiny");
+          // Some browsers silently reset the rate to 1x after the app is
+          // backgrounded/foregrounded again without firing a rate-change
+          // event, so we reassert it every time playback (re)starts.
+          e.target.setPlaybackRate(state.playbackRate);
+        }
         if ("mediaSession" in navigator) {
           navigator.mediaSession.playbackState = e.data === S.PLAYING ? "playing" : e.data === S.PAUSED ? "paused" : "none";
         }
         updatePlayPauseIcon(e.data === S.PLAYING);
-        if (e.data === S.ENDED) { stopSeekInterval(); if (state.autoPlayNext) playNextInQueue(); }
+        if (e.data === S.ENDED) { stopSeekInterval(); handleVideoEnded(); }
       },
       onPlaybackQualityChange: (e) => { if (e.data !== "tiny" && e.data !== "small") e.target.setPlaybackQuality("tiny"); },
       onPlaybackRateChange: (e) => {
-        state.playbackRate = e.data;
-        const btn = document.getElementById("np-speed");
-        if (btn) btn.textContent = `${e.data}x`;
+        // Only reflect changes that YouTube itself forces (e.g. a rate not
+        // supported by this particular video); don't let a silent reset to
+        // 1x overwrite the user's chosen speed — we correct that instead.
+        if (SPEED_STEPS.includes(e.data)) {
+          state.playbackRate = e.data;
+          const btn = document.getElementById("np-speed");
+          if (btn) btn.textContent = `${e.data}x`;
+        } else if (ytPlayer) {
+          ytPlayer.setPlaybackRate(state.playbackRate);
+        }
       },
     },
   });
   setupMediaSession(video);
 }
+
+// Re-apply the chosen speed whenever the app/tab becomes visible again —
+// covers the case where switching apps silently reset playback to 1x.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && ytPlayer) {
+    try { ytPlayer.setPlaybackRate(state.playbackRate); } catch (e) {}
+  }
+});
 
 function setupMediaSession(video) {
   if (!("mediaSession" in navigator)) return;
@@ -465,12 +568,27 @@ function showLockOverlay() {
   let holdTimer = null;
   const overlay = el(`
     <div class="lock-overlay" id="lock-overlay">
-      ${icon("lock", 28)}
+      ${icon("lock", 22)}
+      <button id="lock-play" class="np-icon-btn np-btn-lg np-btn-accent" title="再生">${icon("play", 30)}</button>
       <div class="lock-hint">誤作動防止中<br/>3秒間 長押しして解除</div>
       <div class="lock-progress"><div class="lock-progress-fill" id="lock-progress-fill"></div></div>
     </div>
   `);
   document.body.appendChild(overlay);
+
+  // The play button only ever plays (never pauses) — deliberately no pause
+  // control here, so a stray touch while locked can't stop playback, only
+  // resume it if something paused it.
+  const playBtn = overlay.querySelector("#lock-play");
+  ["pointerdown", "touchstart", "mousedown", "click"].forEach((evt) => {
+    playBtn.addEventListener(evt, (e) => {
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+    });
+  });
+  playBtn.addEventListener("click", () => {
+    if (ytPlayer) { ytPlayer.playVideo(); updatePlayPauseIcon(true); }
+  });
 
   const startHold = (e) => {
     if (e.cancelable) e.preventDefault();
